@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KEBZAY — Inventario</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap');
+  :root {
+    --blue: #1A4FD6;
+    --cyan: #29B6E8;
+    --dark: #0d1117;
+    --darker: #080c12;
+    --gray: #161d27;
+    --gray2: #1c2535;
+    --border: #1e2a3a;
+    --mid: #6b7f99;
+    --white: #ffffff;
+    --green: #22c55e;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Barlow', sans-serif; background: var(--darker); color: var(--white); min-height: 100vh; }
+
+  /* HEADER */
+  header { background: var(--gray); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .header-k { width: 36px; height: 36px; flex-shrink: 0; }
+  .header-text strong { display: block; font-family: 'Barlow Condensed', sans-serif; font-size: 18px; letter-spacing: 3px; color: var(--white); }
+  .header-text span { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 2px; color: var(--cyan); text-transform: uppercase; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .btn-back { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 1px; color: var(--mid); text-decoration: none; background: var(--gray2); border: 1px solid var(--border); padding: 7px 14px; border-radius: 4px; text-transform: uppercase; }
+  .btn-sm { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; border: none; cursor: pointer; padding: 8px 14px; border-radius: 4px; transition: all 0.15s; }
+  .btn-blue { background: var(--blue); color: var(--white); }
+  .btn-blue:hover { background: #1240b0; }
+  .btn-cyan { background: rgba(41,182,232,0.15); color: var(--cyan); border: 1px solid rgba(41,182,232,0.3); }
+  .btn-cyan:hover { background: rgba(41,182,232,0.25); }
+  .item-count { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; color: var(--mid); }
+  .item-count strong { color: var(--cyan); font-size: 18px; }
+
+  /* LAYOUT */
+  .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 64px); }
+
+  /* SIDEBAR */
+  .sidebar { background: var(--gray); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 64px; height: calc(100vh - 64px); overflow-y: auto; }
+  .sidebar-section { padding: 0 16px 8px; }
+  .sidebar-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--mid); padding: 12px 8px 6px; }
+  .search-box { background: var(--darker); border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; width: 100%; color: var(--white); font-family: 'Barlow', sans-serif; font-size: 13px; outline: none; transition: border-color 0.2s; }
+  .search-box:focus { border-color: var(--blue); }
+  .filter-all { display: flex; align-items: center; gap: 8px; padding: 9px 8px; border-radius: 6px; cursor: pointer; transition: background 0.15s; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: var(--mid); margin: 4px 0; }
+  .filter-all.active, .filter-all:hover { background: var(--gray2); color: var(--white); }
+  .filter-all.active { color: var(--cyan); }
+  .cat-group { margin-bottom: 4px; }
+  .cat-header { display: flex; align-items: center; gap: 8px; padding: 9px 8px; border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+  .cat-header:hover { background: var(--gray2); }
+  .cat-header.active { background: var(--gray2); }
+  .cat-name { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: var(--white); flex: 1; }
+  .cat-count { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; color: var(--mid); background: var(--darker); padding: 2px 7px; border-radius: 10px; }
+  .cat-arrow { font-size: 10px; color: var(--mid); transition: transform 0.2s; }
+  .cat-arrow.open { transform: rotate(90deg); }
+  .subcat-list { padding-left: 20px; display: none; }
+  .subcat-list.open { display: block; }
+  .subcat-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 5px; cursor: pointer; transition: background 0.15s; }
+  .subcat-item:hover { background: var(--gray2); }
+  .subcat-item.active { background: rgba(26,79,214,0.15); }
+  .subcat-name { font-family: 'Barlow', sans-serif; font-size: 12px; color: var(--mid); flex: 1; }
+  .subcat-item.active .subcat-name { color: var(--cyan); }
+  .subcat-count { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; color: var(--mid); }
+
+  /* MAIN CONTENT */
+  .content { padding: 24px; }
+  .content-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+  .content-title { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--white); }
+  .content-subtitle { font-size: 13px; color: var(--mid); margin-top: 2px; }
+  .selection-bar { background: rgba(26,79,214,0.12); border: 1px solid rgba(26,79,214,0.3); border-radius: 8px; padding: 10px 16px; display: none; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .selection-bar.visible { display: flex; }
+  .selection-info { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; color: var(--cyan); letter-spacing: 1px; }
+  .selection-actions { display: flex; gap: 8px; }
+
+  /* GRID DE ITEMS */
+  .items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .item-card { background: var(--gray); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; transition: all 0.2s; position: relative; cursor: pointer; }
+  .item-card:hover { border-color: var(--blue); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(26,79,214,0.15); }
+  .item-card.selected { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(41,182,232,0.3); }
+  .item-card-check { position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,0.6); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; z-index: 5; transition: all 0.15s; }
+  .item-card.selected .item-card-check { background: var(--cyan); border-color: var(--cyan); }
+  .item-card-photo { width: 100%; height: 160px; object-fit: cover; display: block; background: var(--gray2); }
+  .item-card-photo-placeholder { width: 100%; height: 160px; background: var(--gray2); display: flex; align-items: center; justify-content: center; font-size: 32px; opacity: 0.3; }
+  .item-card-body { padding: 12px 14px; }
+  .item-card-code { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 2px; color: var(--cyan); margin-bottom: 4px; }
+  .item-card-title { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--white); margin-bottom: 4px; line-height: 1.3; }
+  .item-card-desc { font-size: 12px; color: var(--mid); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .item-card-footer { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.2); }
+  .item-estado { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 3px 8px; border-radius: 4px; }
+  .estado-bueno { background: rgba(34,197,94,0.15); color: var(--green); }
+  .estado-regular { background: rgba(245,158,11,0.15); color: var(--yellow); }
+  .estado-malo { background: rgba(239,68,68,0.15); color: var(--red); }
+  .item-precio { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; color: var(--white); }
+  .item-card-actions { display: flex; gap: 6px; padding: 8px 14px 10px; }
+  .btn-edit { flex: 1; background: var(--gray2); border: 1px solid var(--border); color: var(--mid); border-radius: 5px; padding: 7px; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 1px; cursor: pointer; transition: all 0.15s; text-transform: uppercase; }
+  .btn-edit:hover { color: var(--white); border-color: var(--blue); }
+  .btn-delete { background: none; border: 1px solid var(--border); color: #444; border-radius: 5px; padding: 7px 10px; cursor: pointer; transition: all 0.15s; font-size: 13px; }
+  .btn-delete:hover { color: var(--red); border-color: var(--red); background: rgba(239,68,68,0.08); }
+
+  /* EMPTY STATE */
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 40px; text-align: center; gap: 16px; border: 1px dashed var(--border); border-radius: 12px; }
+  .empty-icon { font-size: 48px; opacity: 0.3; }
+  .empty-state p { color: var(--mid); font-size: 15px; max-width: 280px; line-height: 1.6; }
+
+  /* MODAL ITEM */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 400; align-items: flex-start; justify-content: center; padding: 20px; overflow-y: auto; }
+  .modal-overlay.active { display: flex; }
+  .modal { background: var(--gray); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 560px; margin: auto; }
+  .modal-header { background: var(--darker); padding: 18px 24px; border-bottom: 2px solid var(--blue); display: flex; align-items: center; justify-content: space-between; border-radius: 12px 12px 0 0; }
+  .modal-title { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--white); }
+  .modal-close { background: none; border: none; color: var(--mid); font-size: 20px; cursor: pointer; }
+  .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-field { display: flex; flex-direction: column; gap: 6px; }
+  .form-field label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--mid); }
+  .form-field input, .form-field select, .form-field textarea { background: var(--darker); border: 1px solid var(--border); border-radius: 6px; color: var(--white); font-family: 'Barlow', sans-serif; font-size: 13px; padding: 9px 12px; outline: none; transition: border-color 0.2s; }
+  .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--blue); }
+  .form-field select option { background: var(--darker); }
+  .form-field textarea { min-height: 80px; resize: vertical; }
+  .photos-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .photo-slot { border: 2px dashed var(--border); border-radius: 6px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: var(--darker); transition: all 0.2s; -webkit-tap-highlight-color: transparent; }
+  .photo-slot:hover { border-color: var(--blue); }
+  .photo-slot img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+  .photo-slot .slot-plus { font-size: 20px; opacity: 0.3; pointer-events: none; }
+  .photo-slot .slot-label { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; color: var(--mid); margin-top: 4px; pointer-events: none; }
+  .photo-slot .slot-remove { position: absolute; top: 3px; right: 3px; background: rgba(0,0,0,0.7); color: #fff; border: none; border-radius: 50%; width: 22px; height: 22px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-save { background: var(--blue); color: var(--white); border: none; border-radius: 6px; padding: 11px 24px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: background 0.15s; }
+  .btn-save:hover { background: #1240b0; }
+  .btn-cancel { background: var(--gray2); color: var(--mid); border: 1px solid var(--border); border-radius: 6px; padding: 11px 20px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+
+  /* PROGRESS */
+  .progress-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 500; align-items: center; justify-content: center; flex-direction: column; gap: 20px; }
+  .progress-overlay.active { display: flex; }
+  .progress-title { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; letter-spacing: 3px; text-transform: uppercase; color: var(--white); }
+  .progress-bar-wrap { width: 300px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--cyan); border-radius: 2px; width: 0%; transition: width 0.3s; }
+  .progress-msg { font-size: 13px; color: var(--mid); }
+
+  /* TOAST */
+  .toast { position: fixed; top: 80px; right: 24px; background: var(--blue); color: var(--white); font-family: 'Barlow Condensed', sans-serif; font-size: 14px; letter-spacing: 1px; padding: 12px 20px; border-radius: 6px; z-index: 600; transform: translateX(120%); transition: transform 0.3s; }
+  .toast.show { transform: translateX(0); }
+
+  /* MOBILE */
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 12px 0; }
+    .content { padding: 16px; }
+    .items-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .form-row { grid-template-columns: 1fr; }
+    header { padding: 12px 16px; }
+  }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--darker); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<input type="file" id="fileInputHidden" accept="image/*" style="position:fixed;top:-9999px;left:-9999px;opacity:0;" onchange="handlePhotoInput(event)">
+
+<header>
+  <div class="header-left">
+    <svg class="header-k" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="8" fill="#1A4FD6"/><text x="50" y="72" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="62" font-weight="900" fill="#29B6E8">K</text></svg>
+    <div class="header-text">
+      <strong>KEBZAY</strong>
+      <span>Inventario de Maquinaria</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="item-count"><strong id="totalItems">0</strong> ítems</span>
+    <button class="btn-sm btn-cyan" onclick="openAddModal()">+ Agregar</button>
+    <a href="index.html" class="btn-back">← Inicio</a>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- SIDEBAR FILTROS -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Buscar</div>
+      <input class="search-box" id="searchBox" type="text" placeholder="Buscar por nombre, código..." oninput="applyFilters()">
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Categorías</div>
+      <div class="filter-all active" id="filterAll" onclick="filterByAll()">
+        <span>📦 Todos los ítems</span>
+      </div>
+      <div id="catTree"></div>
+    </div>
+  </aside>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="content">
+    <div class="content-header">
+      <div>
+        <div class="content-title" id="contentTitle">Todo el inventario</div>
+        <div class="content-subtitle" id="contentSubtitle">Mostrando todos los ítems</div>
+      </div>
+    </div>
+
+    <!-- BARRA DE SELECCIÓN -->
+    <div class="selection-bar" id="selectionBar">
+      <div class="selection-info" id="selectionInfo">0 ítems seleccionados</div>
+      <div class="selection-actions">
+        <button class="btn-sm btn-cyan" onclick="generatePDF()">⬇ Generar PDF</button>
+        <button class="btn-sm" style="background:var(--gray2);color:var(--mid);border:1px solid var(--border);" onclick="clearSelection()">✕ Limpiar</button>
+      </div>
+    </div>
+
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🏭</div>
+      <p>El inventario está vacío. Agregá el primer ítem con el botón "+ Agregar".</p>
+    </div>
+    <div class="items-grid" id="itemsGrid" style="display:none;"></div>
+  </main>
+</div>
+
+<!-- MODAL AGREGAR/EDITAR -->
+<div class="modal-overlay" id="modalItem">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalItemTitle">Nuevo ítem</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-field">
+          <label>Categoría</label>
+          <select id="fCategoria" onchange="updateSubcats()">
+            <option value="">Seleccioná...</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Subcategoría</label>
+          <select id="fSubcategoria">
+            <option value="">Seleccioná...</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Nombre del ítem</label>
+        <input type="text" id="fNombre" placeholder="Ej: Cámara frigorífica 10m²">
+      </div>
+      <div class="form-field">
+        <label>Descripción</label>
+        <textarea id="fDesc" placeholder="Marca, modelo, medidas, características..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Estado</label>
+          <select id="fEstado">
+            <option value="Bueno">Bueno</option>
+            <option value="Regular">Regular</option>
+            <option value="Malo">Malo</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Precio (USD)</label>
+          <input type="number" id="fPrecio" placeholder="Ej: 1500" min="0">
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Fotografías (hasta 4)</label>
+        <div class="photos-row" id="photosRow"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveItem()">Guardar ítem</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROGRESS PDF -->
+<div class="progress-overlay" id="progressOverlay">
+  <div class="progress-title">Generando PDF...</div>
+  <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div>
+  <div class="progress-msg" id="progressMsg">Preparando...</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── VERIFICACIÓN PIN ──────────────────────────────────────────────────────
+if (sessionStorage.getItem('kebzay_pin_ok') !== '1') {
+  window.location.href = 'index.html';
+}
+
+// ── SUPABASE ──────────────────────────────────────────────────────────────
+const SUPA_URL = 'https://gjsybqqwwwjntkobpodg.supabase.co';
+const SUPA_KEY = 'sb_publishable_N9daPMK4JxgWAdigPhrYyA_JB2voiQf';
+const SUPA_HEADERS = {
+  'Content-Type': 'application/json',
+  'apikey': SUPA_KEY,
+  'Authorization': 'Bearer ' + SUPA_KEY,
+  'Prefer': 'return=representation'
+};
+
+// ── CATEGORÍAS ────────────────────────────────────────────────────────────
+const CATEGORIAS = [
+  { id: 'gastronomia', nombre: 'Gastronomía', subs: [
+    { id: 'acero_inox', nombre: 'Acero inox' },
+    { id: 'maquinaria', nombre: 'Maquinaria' },
+    { id: 'muebles', nombre: 'Muebles' },
+    { id: 'vajilla', nombre: 'Vajilla y útiles' }
+  ]},
+  { id: 'panificados', nombre: 'Panificados', subs: [
+    { id: 'maquinaria', nombre: 'Maquinaria' },
+    { id: 'carros', nombre: 'Carros y útiles' }
+  ]},
+  { id: 'frio', nombre: 'Frío', subs: [
+    { id: 'heladeras', nombre: 'Heladeras' },
+    { id: 'equipos', nombre: 'Equipos de frío' },
+    { id: 'camaras', nombre: 'Cámaras' },
+    { id: 'paneles', nombre: 'Paneles de cámaras' }
+  ]},
+  { id: 'carnicos', nombre: 'Cárnicos', subs: [
+    { id: 'maquinaria', nombre: 'Maquinaria' },
+    { id: 'carros', nombre: 'Carros y útiles' }
+  ]},
+  { id: 'logistica', nombre: 'Logística', subs: [
+    { id: 'racks', nombre: 'Racks' },
+    { id: 'movimiento', nombre: 'Máquinas de movimiento' }
+  ]}
+];
+
+// ── ESTADO ────────────────────────────────────────────────────────────────
+let items = [];
+let filteredItems = [];
+let selectedIds = new Set();
+let activeFilter = { cat: null, sub: null };
+let editingId = null;
+let currentPhotos = [null, null, null, null];
+let activePhotoSlot = -1;
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+async function init() {
+  buildCatTree();
+  buildCatSelects();
+  initPhotoSlots();
+  await loadItems();
+}
+
+// ── SUPABASE TABLA ────────────────────────────────────────────────────────
+async function loadItems() {
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?order=codigo.asc`, { headers: SUPA_HEADERS });
+    if (res.status === 404 || res.status === 400) {
+      // Tabla no existe aún — trabajar en local
+      items = JSON.parse(localStorage.getItem('kebzay_inventario') || '[]');
+    } else {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        items = data;
+        localStorage.setItem('kebzay_inventario', JSON.stringify(items));
+      } else {
+        items = JSON.parse(localStorage.getItem('kebzay_inventario') || '[]');
+      }
+    }
+  } catch(e) {
+    items = JSON.parse(localStorage.getItem('kebzay_inventario') || '[]');
+  }
+  applyFilters();
+  updateCounter();
+}
+
+async function saveItemToSupabase(item) {
+  try {
+    if (item.id && item.id.toString().length > 10) {
+      // UUID — update
+      await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?id=eq.${item.id}`, {
+        method: 'PATCH', headers: SUPA_HEADERS,
+        body: JSON.stringify({ ...item, updated_at: new Date().toISOString() })
+      });
+    } else {
+      // Insert
+      const res = await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario`, {
+        method: 'POST', headers: SUPA_HEADERS,
+        body: JSON.stringify(item)
+      });
+      const data = await res.json();
+      if (data && data[0]) return data[0].id;
+    }
+  } catch(e) {
+    console.warn('Supabase no disponible, guardando local', e);
+  }
+  return item.id;
+}
+
+async function deleteItemFromSupabase(id) {
+  try {
+    await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?id=eq.${id}`, {
+      method: 'DELETE', headers: SUPA_HEADERS
+    });
+  } catch(e) { console.warn(e); }
+}
+
+function saveLocal() {
+  localStorage.setItem('kebzay_inventario', JSON.stringify(items));
+}
+
+// ── CÓDIGO CORRELATIVO ────────────────────────────────────────────────────
+function generateCode(catId, subId) {
+  const catMap = { gastronomia:'GAS', panificados:'PAN', frio:'FRI', carnicos:'CAR', logistica:'LOG' };
+  const subMap = {
+    acero_inox:'AI', maquinaria:'MQ', muebles:'MU', vajilla:'VJ',
+    carros:'CR', heladeras:'HL', equipos:'EQ', camaras:'CM', paneles:'PN',
+    racks:'RK', movimiento:'MV'
+  };
+  const prefix = (catMap[catId] || 'GEN') + '-' + (subMap[subId] || 'XX');
+  const existing = items.filter(i => i.codigo && i.codigo.startsWith(prefix));
+  const num = (existing.length + 1).toString().padStart(3, '0');
+  return `${prefix}-${num}`;
+}
+
+// ── ÁRBOL DE CATEGORÍAS SIDEBAR ───────────────────────────────────────────
+function buildCatTree() {
+  const tree = document.getElementById('catTree');
+  tree.innerHTML = CATEGORIAS.map(cat => {
+    const subs = cat.subs.map(sub => `
+      <div class="subcat-item" id="sub-${cat.id}-${sub.id}" onclick="filterBySub('${cat.id}','${sub.id}')">
+        <span class="subcat-name">${sub.nombre}</span>
+        <span class="subcat-count" id="cnt-${cat.id}-${sub.id}">0</span>
+      </div>
+    `).join('');
+    return `
+      <div class="cat-group">
+        <div class="cat-header" id="cat-${cat.id}" onclick="toggleCat('${cat.id}')">
+          <span class="cat-name">${cat.nombre}</span>
+          <span class="cat-count" id="cnt-${cat.id}">0</span>
+          <span class="cat-arrow" id="arr-${cat.id}">▶</span>
+        </div>
+        <div class="subcat-list" id="subs-${cat.id}">${subs}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleCat(catId) {
+  const subs = document.getElementById(`subs-${catId}`);
+  const arr = document.getElementById(`arr-${catId}`);
+  subs.classList.toggle('open');
+  arr.classList.toggle('open');
+}
+
+function updateCounts() {
+  CATEGORIAS.forEach(cat => {
+    const catItems = items.filter(i => i.categoria === cat.id);
+    const el = document.getElementById(`cnt-${cat.id}`);
+    if (el) el.textContent = catItems.length;
+    cat.subs.forEach(sub => {
+      const subItems = items.filter(i => i.categoria === cat.id && i.subcategoria === sub.id);
+      const sel = document.getElementById(`cnt-${cat.id}-${sub.id}`);
+      if (sel) sel.textContent = subItems.length;
+    });
+  });
+}
+
+function filterByAll() {
+  activeFilter = { cat: null, sub: null };
+  document.querySelectorAll('.filter-all').forEach(e => e.classList.add('active'));
+  document.querySelectorAll('.cat-header, .subcat-item').forEach(e => e.classList.remove('active'));
+  document.getElementById('contentTitle').textContent = 'Todo el inventario';
+  applyFilters();
+}
+
+function filterBySub(catId, subId) {
+  activeFilter = { cat: catId, sub: subId };
+  document.querySelectorAll('.filter-all').forEach(e => e.classList.remove('active'));
+  document.querySelectorAll('.subcat-item').forEach(e => e.classList.remove('active'));
+  document.getElementById(`sub-${catId}-${subId}`).classList.add('active');
+  const cat = CATEGORIAS.find(c => c.id === catId);
+  const sub = cat?.subs.find(s => s.id === subId);
+  document.getElementById('contentTitle').textContent = `${cat?.nombre} · ${sub?.nombre}`;
+  // Abrir el grupo si está cerrado
+  const subs = document.getElementById(`subs-${catId}`);
+  const arr = document.getElementById(`arr-${catId}`);
+  if (!subs.classList.contains('open')) { subs.classList.add('open'); arr.classList.add('open'); }
+  applyFilters();
+}
+
+// ── FILTROS Y BÚSQUEDA ────────────────────────────────────────────────────
+function applyFilters() {
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  filteredItems = items.filter(item => {
+    const matchCat = !activeFilter.cat || item.categoria === activeFilter.cat;
+    const matchSub = !activeFilter.sub || item.subcategoria === activeFilter.sub;
+    const matchSearch = !search ||
+      (item.nombre && item.nombre.toLowerCase().includes(search)) ||
+      (item.codigo && item.codigo.toLowerCase().includes(search)) ||
+      (item.descripcion && item.descripcion.toLowerCase().includes(search));
+    return matchCat && matchSub && matchSearch;
+  });
+  document.getElementById('contentSubtitle').textContent = `${filteredItems.length} ítem${filteredItems.length !== 1 ? 's' : ''}`;
+  renderItems();
+  updateCounts();
+  updateCounter();
+}
+
+// ── RENDER ITEMS ──────────────────────────────────────────────────────────
+function renderItems() {
+  const grid = document.getElementById('itemsGrid');
+  const empty = document.getElementById('emptyState');
+  if (filteredItems.length === 0) {
+    empty.style.display = 'flex';
+    grid.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  grid.style.display = 'grid';
+  grid.innerHTML = filteredItems.map(item => {
+    const isSelected = selectedIds.has(item.id);
+    const estadoClass = item.estado === 'Bueno' ? 'estado-bueno' : item.estado === 'Regular' ? 'estado-regular' : 'estado-malo';
+    const mainPhoto = item.photos && item.photos[0];
+    return `
+      <div class="item-card ${isSelected ? 'selected' : ''}" id="card-${item.id}">
+        <div class="item-card-check" onclick="toggleSelect(event, '${item.id}')">${isSelected ? '✓' : ''}</div>
+        ${mainPhoto
+          ? `<img class="item-card-photo" src="${mainPhoto}" onclick="toggleSelect(event, '${item.id}')">`
+          : `<div class="item-card-photo-placeholder" onclick="toggleSelect(event, '${item.id}')">🏭</div>`
+        }
+        <div class="item-card-body" onclick="toggleSelect(event, '${item.id}')">
+          <div class="item-card-code">${item.codigo || ''}</div>
+          <div class="item-card-title">${item.nombre || ''}</div>
+          <div class="item-card-desc">${item.descripcion || ''}</div>
+        </div>
+        <div class="item-card-footer">
+          <span class="item-estado ${estadoClass}">${item.estado || ''}</span>
+          <span class="item-precio">${item.precio ? 'USD ' + Number(item.precio).toLocaleString() : '—'}</span>
+        </div>
+        <div class="item-card-actions">
+          <button class="btn-edit" onclick="openEditModal('${item.id}')">✏ Editar</button>
+          <button class="btn-delete" onclick="deleteItem('${item.id}')">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateCounter() {
+  document.getElementById('totalItems').textContent = items.length;
+}
+
+// ── SELECCIÓN ─────────────────────────────────────────────────────────────
+function toggleSelect(event, id) {
+  if (event.target.classList.contains('btn-edit') || event.target.classList.contains('btn-delete')) return;
+  if (selectedIds.has(id)) { selectedIds.delete(id); } else { selectedIds.add(id); }
+  renderItems();
+  updateSelectionBar();
+}
+
+function updateSelectionBar() {
+  const bar = document.getElementById('selectionBar');
+  const info = document.getElementById('selectionInfo');
+  if (selectedIds.size > 0) {
+    bar.classList.add('visible');
+    info.textContent = `${selectedIds.size} ítem${selectedIds.size !== 1 ? 's' : ''} seleccionado${selectedIds.size !== 1 ? 's' : ''}`;
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  renderItems();
+  updateSelectionBar();
+}
+
+// ── MODAL AGREGAR/EDITAR ──────────────────────────────────────────────────
+function buildCatSelects() {
+  const catSel = document.getElementById('fCategoria');
+  CATEGORIAS.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat.id;
+    opt.textContent = cat.nombre;
+    catSel.appendChild(opt);
+  });
+}
+
+function updateSubcats() {
+  const catId = document.getElementById('fCategoria').value;
+  const subSel = document.getElementById('fSubcategoria');
+  subSel.innerHTML = '<option value="">Seleccioná...</option>';
+  const cat = CATEGORIAS.find(c => c.id === catId);
+  if (cat) {
+    cat.subs.forEach(sub => {
+      const opt = document.createElement('option');
+      opt.value = sub.id;
+      opt.textContent = sub.nombre;
+      subSel.appendChild(opt);
+    });
+  }
+}
+
+function openAddModal() {
+  editingId = null;
+  currentPhotos = [null, null, null, null];
+  document.getElementById('modalItemTitle').textContent = 'Nuevo ítem';
+  document.getElementById('fCategoria').value = '';
+  document.getElementById('fSubcategoria').innerHTML = '<option value="">Seleccioná...</option>';
+  document.getElementById('fNombre').value = '';
+  document.getElementById('fDesc').value = '';
+  document.getElementById('fEstado').value = 'Bueno';
+  document.getElementById('fPrecio').value = '';
+  initPhotoSlots();
+  document.getElementById('modalItem').classList.add('active');
+}
+
+function openEditModal(id) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+  editingId = id;
+  currentPhotos = [...(item.photos || [null, null, null, null])];
+  while (currentPhotos.length < 4) currentPhotos.push(null);
+  document.getElementById('modalItemTitle').textContent = 'Editar ítem';
+  document.getElementById('fCategoria').value = item.categoria || '';
+  updateSubcats();
+  document.getElementById('fSubcategoria').value = item.subcategoria || '';
+  document.getElementById('fNombre').value = item.nombre || '';
+  document.getElementById('fDesc').value = item.descripcion || '';
+  document.getElementById('fEstado').value = item.estado || 'Bueno';
+  document.getElementById('fPrecio').value = item.precio || '';
+  initPhotoSlots();
+  document.getElementById('modalItem').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalItem').classList.remove('active');
+}
+
+async function saveItem() {
+  const catId = document.getElementById('fCategoria').value;
+  const subId = document.getElementById('fSubcategoria').value;
+  const nombre = document.getElementById('fNombre').value.trim();
+  const desc = document.getElementById('fDesc').value.trim();
+  const estado = document.getElementById('fEstado').value;
+  const precio = document.getElementById('fPrecio').value;
+  const photos = currentPhotos.filter(p => p);
+
+  if (!catId) { showToast('Seleccioná una categoría'); return; }
+  if (!nombre) { showToast('Escribí el nombre del ítem'); return; }
+
+  if (editingId) {
+    const idx = items.findIndex(i => i.id === editingId);
+    if (idx >= 0) {
+      items[idx] = { ...items[idx], categoria: catId, subcategoria: subId, nombre, descripcion: desc, estado, precio, photos };
+      await saveItemToSupabase(items[idx]);
+      showToast('✓ Ítem actualizado');
+    }
+  } else {
+    const codigo = generateCode(catId, subId);
+    const newItem = { id: Date.now().toString(), codigo, categoria: catId, subcategoria: subId, nombre, descripcion: desc, estado, precio, photos, created_at: new Date().toISOString() };
+    items.push(newItem);
+    await saveItemToSupabase(newItem);
+    showToast(`✓ Ítem ${codigo} agregado`);
+  }
+
+  saveLocal();
+  closeModal();
+  applyFilters();
+}
+
+async function deleteItem(id) {
+  if (!confirm('¿Eliminar este ítem del inventario?')) return;
+  items = items.filter(i => i.id !== id);
+  selectedIds.delete(id);
+  await deleteItemFromSupabase(id);
+  saveLocal();
+  applyFilters();
+  updateSelectionBar();
+  showToast('Ítem eliminado');
+}
+
+// ── FOTOS ─────────────────────────────────────────────────────────────────
+function initPhotoSlots() {
+  const row = document.getElementById('photosRow');
+  row.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'photo-slot';
+    slot.id = `pslot-${i}`;
+    slot.onclick = (e) => {
+      if (e.target.classList.contains('slot-remove')) return;
+      activePhotoSlot = i;
+      const inp = document.getElementById('fileInputHidden');
+      inp.value = '';
+      inp.click();
+    };
+    row.appendChild(slot);
+    renderPhotoSlot(i);
+  }
+}
+
+function renderPhotoSlot(i) {
+  const slot = document.getElementById(`pslot-${i}`);
+  if (!slot) return;
+  if (currentPhotos[i]) {
+    slot.innerHTML = `<img src="${currentPhotos[i]}"><button class="slot-remove" onclick="removePhotoSlot(event,${i})">✕</button>`;
+  } else {
+    slot.innerHTML = `<span class="slot-plus">+</span><span class="slot-label">${i === 0 ? 'PRINCIPAL' : `FOTO ${i+1}`}</span>`;
+  }
+}
+
+function handlePhotoInput(event) {
+  const file = event.target.files[0];
+  if (!file || activePhotoSlot < 0) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    compressImage(ev.target.result, 900, 0.75).then(compressed => {
+      currentPhotos[activePhotoSlot] = compressed;
+      renderPhotoSlot(activePhotoSlot);
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePhotoSlot(event, i) {
+  event.stopPropagation();
+  currentPhotos[i] = null;
+  renderPhotoSlot(i);
+}
+
+function compressImage(dataUrl, maxSize, quality) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  });
+}
+
+// ── GENERAR PDF ───────────────────────────────────────────────────────────
+async function generatePDF() {
+  const toExport = items.filter(i => selectedIds.has(i.id));
+  if (toExport.length === 0) { showToast('Seleccioná al menos un ítem'); return; }
+
+  const overlay = document.getElementById('progressOverlay');
+  const fill = document.getElementById('progressFill');
+  const msg = document.getElementById('progressMsg');
+  overlay.classList.add('active');
+
+  const { jsPDF } = window.jspdf;
+  const W = 1440, H = 810;
+  const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [W, H] });
+  const DARK=[13,17,23], BLUE=[26,79,214], CYAN=[41,182,232], WHITE=[255,255,255], LGRAY=[240,243,248], MID=[107,127,153];
+
+  // PORTADA
+  msg.textContent = 'Generando portada...'; fill.style.width = '5%';
+  await sleep(30);
+  const SPLIT = Math.floor(W * 0.36);
+  pdf.setFillColor(...BLUE); pdf.rect(0, 0, SPLIT, H, 'F');
+  pdf.setFillColor(...DARK); pdf.rect(SPLIT, 0, W - SPLIT, H, 'F');
+  pdf.setTextColor(...WHITE); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(72);
+  pdf.text('K', SPLIT / 2, H * 0.48, { align: 'center' });
+  pdf.setFontSize(18); pdf.text('KEBZAY', SPLIT / 2, H * 0.58, { align: 'center' });
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(11); pdf.setTextColor(...CYAN);
+  pdf.text('M A Q U I N A R I A', SPLIT / 2, H * 0.64, { align: 'center' });
+  const TXT_X = SPLIT + 60;
+  pdf.setTextColor(...WHITE); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(52);
+  pdf.text('CATÁLOGO', TXT_X, H * 0.38);
+  pdf.setTextColor(...CYAN); pdf.text('INVENTARIO', TXT_X, H * 0.50);
+  pdf.setTextColor(...MID); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(14);
+  pdf.text(`${toExport.length} ítem${toExport.length !== 1 ? 's' : ''} seleccionado${toExport.length !== 1 ? 's' : ''}`, TXT_X, H * 0.62);
+  const fecha = new Date().toLocaleDateString('es-AR', {day:'2-digit',month:'long',year:'numeric'});
+  pdf.text(fecha, TXT_X, H * 0.68);
+  pdf.setDrawColor(...CYAN); pdf.setLineWidth(2); pdf.line(TXT_X, H * 0.72, TXT_X + 320, H * 0.72);
+
+  // PÁGINAS POR ÍTEM
+  for (let i = 0; i < toExport.length; i++) {
+    const item = toExport[i];
+    const photos = (item.photos || []).filter(Boolean);
+    const totalPages = Math.max(photos.length, 1);
+    fill.style.width = (5 + ((i + 1) / toExport.length) * 93) + '%';
+
+    for (let p = 0; p < totalPages; p++) {
+      msg.textContent = `Ítem ${i+1}/${toExport.length} — foto ${p+1}/${totalPages}`;
+      await sleep(10);
+      pdf.addPage([W, H], 'landscape');
+      pdf.setFillColor(...LGRAY); pdf.rect(0, 0, W, H, 'F');
+
+      // Header
+      const HH = 80;
+      pdf.setFillColor(...DARK); pdf.rect(0, 0, W, HH, 'F');
+      pdf.setDrawColor(...BLUE); pdf.setLineWidth(2); pdf.line(0, HH, W, HH);
+      pdf.setTextColor(...WHITE); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(22);
+      pdf.text('K', 36, HH / 2 + 8);
+      pdf.setFontSize(14); pdf.text('KEBZAY', 58, HH / 2 - 2);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(...CYAN);
+      pdf.text('MAQUINARIA', 58, HH / 2 + 12);
+      // Código centrado
+      pdf.setTextColor(MID[0], MID[1], MID[2]); pdf.setFontSize(10);
+      pdf.text(item.codigo || '', W / 2, HH / 2 - 6, { align: 'center' });
+      pdf.setTextColor(...WHITE); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(14);
+      pdf.text((item.nombre || '').toUpperCase(), W / 2, HH / 2 + 10, { align: 'center' });
+      if (totalPages > 1) {
+        pdf.setTextColor(MID[0], MID[1], MID[2]); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9);
+        pdf.text(`${p+1}/${totalPages}`, W - 30, HH / 2 + 4, { align: 'right' });
+      }
+
+      const GAP = 14;
+      const PANEL_W = 380;
+      const CONTENT_Y = HH + GAP;
+      const CONTENT_H = H - CONTENT_Y - GAP;
+
+      // Panel descripción (solo página 1)
+      if (p === 0) {
+        pdf.setFillColor(...WHITE); pdf.roundedRect(GAP, CONTENT_Y, PANEL_W - GAP, CONTENT_H, 8, 8, 'F');
+        pdf.setFillColor(...BLUE); pdf.rect(GAP, CONTENT_Y, 5, CONTENT_H, 'F');
+
+        // Categoría
+        const cat = CATEGORIAS.find(c => c.id === item.categoria);
+        const sub = cat?.subs.find(s => s.id === item.subcategoria);
+        pdf.setTextColor(...BLUE); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9);
+        pdf.text([(cat?.nombre || ''), sub ? '› ' + sub.nombre : ''].filter(Boolean).join(' '), 30, CONTENT_Y + 22);
+
+        pdf.setTextColor(40,40,40); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(13);
+        pdf.text('DESCRIPCIÓN', 30, CONTENT_Y + 40);
+        pdf.setDrawColor(220, 220, 220); pdf.setLineWidth(0.5);
+        pdf.line(30, CONTENT_Y + 46, PANEL_W - 10, CONTENT_Y + 46);
+
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(12); pdf.setTextColor(60, 60, 60);
+        const descLines = (item.descripcion || '').split('\n').filter(l => l.trim());
+        let yLine = CONTENT_Y + 66;
+        for (const dl of descLines) {
+          if (yLine > CONTENT_Y + CONTENT_H - 80) break;
+          const wrapped = pdf.splitTextToSize('• ' + dl.trim(), PANEL_W - 50);
+          for (const wl of wrapped) {
+            if (yLine > CONTENT_Y + CONTENT_H - 80) break;
+            pdf.text(wl, 28, yLine); yLine += 19;
+          }
+        }
+
+        // Estado y precio
+        const estadoColor = item.estado === 'Bueno' ? [34,197,94] : item.estado === 'Regular' ? [245,158,11] : [239,68,68];
+        pdf.setFillColor(...estadoColor);
+        pdf.roundedRect(GAP + 8, H - GAP - 90, (PANEL_W - GAP - 16) / 2 - 4, 34, 5, 5, 'F');
+        pdf.setTextColor(...WHITE); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(12);
+        pdf.text(`ESTADO: ${item.estado || ''}`, GAP + 8 + (PANEL_W - GAP - 16) / 4 - 4, H - GAP - 68, { align: 'center' });
+
+        if (item.precio) {
+          pdf.setFillColor(...BLUE);
+          pdf.roundedRect(GAP + 8 + (PANEL_W - GAP - 16) / 2, H - GAP - 90, (PANEL_W - GAP - 16) / 2 - 4, 34, 5, 5, 'F');
+          pdf.setTextColor(...WHITE);
+          pdf.text(`USD ${Number(item.precio).toLocaleString()}`, GAP + 8 + (PANEL_W - GAP - 16) * 3 / 4, H - GAP - 68, { align: 'center' });
+        }
+
+        // Código
+        pdf.setFillColor(240, 243, 248); pdf.setDrawColor(200,210,220); pdf.setLineWidth(0.5);
+        pdf.roundedRect(GAP + 8, H - GAP - 46, PANEL_W - GAP - 16, 32, 5, 5, 'FD');
+        pdf.setTextColor(...BLUE); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(13);
+        pdf.text(item.codigo || '', (PANEL_W) / 2 + 6, H - GAP - 24, { align: 'center' });
+      }
+
+      // Foto
+      const photoSrc = photos[p];
+      if (photoSrc) {
+        try {
+          const PHOTO_X = (p === 0) ? PANEL_W + GAP : GAP;
+          const PHOTO_W = (p === 0) ? W - PHOTO_X - GAP : W - GAP * 2;
+          const tempImg = await loadImage(photoSrc);
+          let iw = tempImg.width, ih = tempImg.height;
+          const spaceRatio = PHOTO_W / CONTENT_H;
+          const imgRatio = iw / ih;
+          let imgData = photoSrc;
+          if (imgRatio < spaceRatio) {
+            const canvas = document.createElement('canvas');
+            const newH = Math.floor(iw / spaceRatio);
+            const topCrop = Math.floor((ih - newH) / 2);
+            canvas.width = iw; canvas.height = newH;
+            canvas.getContext('2d').drawImage(tempImg, 0, -topCrop);
+            imgData = canvas.toDataURL('image/jpeg', 0.85);
+            iw = canvas.width; ih = canvas.height;
+          }
+          const scale = Math.min(PHOTO_W / iw, CONTENT_H / ih);
+          const dw = iw * scale, dh = ih * scale;
+          const dx = PHOTO_X + (PHOTO_W - dw) / 2;
+          const dy = CONTENT_Y + (CONTENT_H - dh) / 2;
+          pdf.addImage(imgData, 'JPEG', dx, dy, dw, dh);
+          pdf.setDrawColor(...BLUE); pdf.setLineWidth(1.5);
+          pdf.rect(dx, dy, dw, dh);
+        } catch(e) { console.warn(e); }
+      }
+    }
+  }
+
+  fill.style.width = '100%';
+  msg.textContent = '¡Listo!';
+  await sleep(300);
+  overlay.classList.remove('active');
+
+  const pdfBlob = pdf.output('blob');
+  const fecha2 = new Date().toISOString().slice(0,10);
+  const fileName = `kebzay_inventario_${fecha2}.pdf`;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  if (isIOS) {
+    const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ title: fileName, files: [file] }); return; } catch(e) { if (e.name === 'AbortError') return; }
+    }
+    window.open(URL.createObjectURL(pdfBlob), '_blank');
+  } else {
+    const url = URL.createObjectURL(pdfBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('✓ PDF descargando...');
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function loadImage(src) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = rej;
+    img.src = src;
+  });
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+init();
+</script>
+</body>
+</html>
