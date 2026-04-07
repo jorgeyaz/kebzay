@@ -20,6 +20,7 @@
     --green: #22c55e;
     --yellow: #f59e0b;
     --red: #ef4444;
+    --baja: #64748b;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Barlow', sans-serif; background: var(--darker); color: var(--white); min-height: 100vh; }
@@ -97,6 +98,8 @@
   .estado-bueno { background: rgba(34,197,94,0.15); color: var(--green); }
   .estado-regular { background: rgba(245,158,11,0.15); color: var(--yellow); }
   .estado-malo { background: rgba(239,68,68,0.15); color: var(--red); }
+  .estado-baja { background: rgba(100,116,139,0.15); color: var(--baja); }
+  .item-card.dado-baja { opacity: 0.5; filter: grayscale(0.4); }
   .item-precio { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; color: var(--white); }
   .item-card-actions { display: flex; gap: 6px; padding: 8px 14px 10px; }
   .btn-edit { flex: 1; background: var(--gray2); border: 1px solid var(--border); color: var(--mid); border-radius: 5px; padding: 7px; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 1px; cursor: pointer; transition: all 0.15s; text-transform: uppercase; }
@@ -240,7 +243,7 @@
         </div>
         <div class="form-field">
           <label>Subcategoría</label>
-          <select id="fSubcategoria">
+          <select id="fSubcategoria" onchange="updateCodigoPreview()">
             <option value="">Seleccioná...</option>
           </select>
         </div>
@@ -260,11 +263,22 @@
             <option value="Bueno">Bueno</option>
             <option value="Regular">Regular</option>
             <option value="Malo">Malo</option>
+            <option value="Dado de baja">Dado de baja</option>
           </select>
         </div>
         <div class="form-field">
-          <label>Precio (USD)</label>
-          <input type="number" id="fPrecio" placeholder="Ej: 1500" min="0">
+          <label>Precio ($ ARS)</label>
+          <input type="number" id="fPrecio" placeholder="Ej: 150000" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Cantidad en stock</label>
+          <input type="number" id="fCantidad" placeholder="Ej: 3" min="0" value="1">
+        </div>
+        <div class="form-field">
+          <label>Código (autogenerado)</label>
+          <input type="text" id="fCodigo" placeholder="GAS-MQ-001" readonly style="opacity:0.5;cursor:default;">
         </div>
       </div>
       <div class="form-field">
@@ -374,25 +388,26 @@ async function loadItems() {
 
 async function saveItemToSupabase(item) {
   try {
-    if (item.id && item.id.toString().length > 10) {
-      // UUID — update
+    // Verificar si ya existe en Supabase
+    const checkRes = await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?id=eq.${item.id}&select=id`, { headers: SUPA_HEADERS });
+    const existing = await checkRes.json();
+    
+    if (existing && existing.length > 0) {
+      // Update
       await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?id=eq.${item.id}`, {
         method: 'PATCH', headers: SUPA_HEADERS,
         body: JSON.stringify({ ...item, updated_at: new Date().toISOString() })
       });
     } else {
       // Insert
-      const res = await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario`, {
+      await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario`, {
         method: 'POST', headers: SUPA_HEADERS,
         body: JSON.stringify(item)
       });
-      const data = await res.json();
-      if (data && data[0]) return data[0].id;
     }
   } catch(e) {
     console.warn('Supabase no disponible, guardando local', e);
   }
-  return item.id;
 }
 
 async function deleteItemFromSupabase(id) {
@@ -518,10 +533,11 @@ function renderItems() {
   grid.style.display = 'grid';
   grid.innerHTML = filteredItems.map(item => {
     const isSelected = selectedIds.has(item.id);
-    const estadoClass = item.estado === 'Bueno' ? 'estado-bueno' : item.estado === 'Regular' ? 'estado-regular' : 'estado-malo';
+    const esBaja = item.estado === 'Dado de baja';
+    const estadoClass = item.estado === 'Bueno' ? 'estado-bueno' : item.estado === 'Regular' ? 'estado-regular' : item.estado === 'Malo' ? 'estado-malo' : 'estado-baja';
     const mainPhoto = item.photos && item.photos[0];
     return `
-      <div class="item-card ${isSelected ? 'selected' : ''}" id="card-${item.id}">
+      <div class="item-card ${isSelected ? 'selected' : ''} ${esBaja ? 'dado-baja' : ''}" id="card-${item.id}">
         <div class="item-card-check" onclick="toggleSelect(event, '${item.id}')">${isSelected ? '✓' : ''}</div>
         ${mainPhoto
           ? `<img class="item-card-photo" src="${mainPhoto}" onclick="toggleSelect(event, '${item.id}')">`
@@ -534,7 +550,10 @@ function renderItems() {
         </div>
         <div class="item-card-footer">
           <span class="item-estado ${estadoClass}">${item.estado || ''}</span>
-          <span class="item-precio">${item.precio ? 'USD ' + Number(item.precio).toLocaleString() : '—'}</span>
+          <div style="text-align:right;">
+            <div class="item-precio">${item.precio ? '$ ' + Number(item.precio).toLocaleString('es-AR') : '—'}</div>
+            ${item.cantidad ? `<div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--mid);letter-spacing:1px;">STOCK: ${item.cantidad}</div>` : ''}
+          </div>
         </div>
         <div class="item-card-actions">
           <button class="btn-edit" onclick="openEditModal('${item.id}')">✏ Editar</button>
@@ -598,6 +617,18 @@ function updateSubcats() {
       subSel.appendChild(opt);
     });
   }
+  updateCodigoPreview();
+}
+
+function updateCodigoPreview() {
+  if (editingId) return; // no cambiar código si estamos editando
+  const catId = document.getElementById('fCategoria').value;
+  const subId = document.getElementById('fSubcategoria').value;
+  if (catId && subId) {
+    document.getElementById('fCodigo').value = generateCode(catId, subId) + ' (preview)';
+  } else {
+    document.getElementById('fCodigo').value = '';
+  }
 }
 
 function openAddModal() {
@@ -610,6 +641,8 @@ function openAddModal() {
   document.getElementById('fDesc').value = '';
   document.getElementById('fEstado').value = 'Bueno';
   document.getElementById('fPrecio').value = '';
+  document.getElementById('fCantidad').value = '1';
+  document.getElementById('fCodigo').value = '';
   initPhotoSlots();
   document.getElementById('modalItem').classList.add('active');
 }
@@ -628,6 +661,8 @@ function openEditModal(id) {
   document.getElementById('fDesc').value = item.descripcion || '';
   document.getElementById('fEstado').value = item.estado || 'Bueno';
   document.getElementById('fPrecio').value = item.precio || '';
+  document.getElementById('fCantidad').value = item.cantidad || '1';
+  document.getElementById('fCodigo').value = item.codigo || '';
   initPhotoSlots();
   document.getElementById('modalItem').classList.add('active');
 }
@@ -643,6 +678,7 @@ async function saveItem() {
   const desc = document.getElementById('fDesc').value.trim();
   const estado = document.getElementById('fEstado').value;
   const precio = document.getElementById('fPrecio').value;
+  const cantidad = document.getElementById('fCantidad').value;
   const photos = currentPhotos.filter(p => p);
 
   if (!catId) { showToast('Seleccioná una categoría'); return; }
@@ -651,13 +687,13 @@ async function saveItem() {
   if (editingId) {
     const idx = items.findIndex(i => i.id === editingId);
     if (idx >= 0) {
-      items[idx] = { ...items[idx], categoria: catId, subcategoria: subId, nombre, descripcion: desc, estado, precio, photos };
+      items[idx] = { ...items[idx], categoria: catId, subcategoria: subId, nombre, descripcion: desc, estado, precio, cantidad, photos };
       await saveItemToSupabase(items[idx]);
       showToast('✓ Ítem actualizado');
     }
   } else {
     const codigo = generateCode(catId, subId);
-    const newItem = { id: Date.now().toString(), codigo, categoria: catId, subcategoria: subId, nombre, descripcion: desc, estado, precio, photos, created_at: new Date().toISOString() };
+    const newItem = { id: Date.now().toString(), codigo, categoria: catId, subcategoria: subId, nombre, descripcion: desc, estado, precio, cantidad, photos, created_at: new Date().toISOString() };
     items.push(newItem);
     await saveItemToSupabase(newItem);
     showToast(`✓ Ítem ${codigo} agregado`);
@@ -858,7 +894,11 @@ async function generatePDF() {
           pdf.setFillColor(...BLUE);
           pdf.roundedRect(GAP + 8 + (PANEL_W - GAP - 16) / 2, H - GAP - 90, (PANEL_W - GAP - 16) / 2 - 4, 34, 5, 5, 'F');
           pdf.setTextColor(...WHITE);
-          pdf.text(`USD ${Number(item.precio).toLocaleString()}`, GAP + 8 + (PANEL_W - GAP - 16) * 3 / 4, H - GAP - 68, { align: 'center' });
+          pdf.text(`$ ${Number(item.precio).toLocaleString('es-AR')}`, GAP + 8 + (PANEL_W - GAP - 16) * 3 / 4, H - GAP - 68, { align: 'center' });
+        }
+        if (item.cantidad) {
+          pdf.setTextColor(MID[0],MID[1],MID[2]); pdf.setFont('helvetica','normal'); pdf.setFontSize(10);
+          pdf.text(`STOCK: ${item.cantidad} unidad${item.cantidad != 1 ? 'es' : ''}`, 30, H - GAP - 100);
         }
 
         // Código
