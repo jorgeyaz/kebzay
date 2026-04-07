@@ -620,7 +620,6 @@ async function loadItems() {
 }
 
 async function syncItemToSupabase(item) {
-  // Preparar item limpio para Supabase — solo campos que existen en la tabla
   const clean = {
     id: item.id,
     codigo: item.codigo || null,
@@ -635,11 +634,12 @@ async function syncItemToSupabase(item) {
     baja_motivo: item.baja_motivo || null,
     baja_fecha: item.baja_fecha || null,
     baja_nota: item.baja_nota || null,
+    historial_bajas: item.historial_bajas || [],
+    historial_ingresos: item.historial_ingresos || [],
     created_at: item.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
   try {
-    // Upsert — inserta o actualiza según el id
     await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario`, {
       method: 'POST',
       headers: { ...SUPA_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
