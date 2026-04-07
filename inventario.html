@@ -120,6 +120,15 @@
   .estado-baja { background: rgba(100,116,139,0.15); color: var(--baja); }
   .item-card.dado-baja { opacity: 0.5; filter: grayscale(0.4); }
 
+  /* MODAL MOVIMIENTO STOCK */
+  .stock-actual { background: var(--darker); border-radius: 8px; padding: 16px; text-align: center; margin-bottom: 4px; }
+  .stock-actual-num { font-family: 'Barlow Condensed', sans-serif; font-size: 48px; font-weight: 800; color: var(--cyan); line-height: 1; }
+  .stock-actual-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--mid); margin-top: 4px; }
+  .stock-resultado { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px; background: var(--darker); border-radius: 8px; margin-top: 4px; }
+  .stock-resultado-item { text-align: center; }
+  .stock-resultado-num { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 800; }
+  .stock-resultado-label { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--mid); }
+
   /* PANEL MOTIVO BAJA */
   .baja-panel { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; padding: 14px; display: none; flex-direction: column; gap: 10px; }
   .baja-panel.visible { display: flex; }
@@ -265,6 +274,63 @@
     </div>
     <div class="items-grid" id="itemsGrid" style="display:none;"></div>
   </main>
+</div>
+
+<!-- MODAL BAJA DE STOCK -->
+<div class="modal-overlay" id="modalBajaStock">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header" style="border-color:var(--red);">
+      <span class="modal-title" id="bajaStockTitle">↓ Baja de stock</span>
+      <button class="modal-close" onclick="closeBajaStock()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="stock-actual">
+        <div class="stock-actual-num" id="bajaStockActual">0</div>
+        <div class="stock-actual-label">Unidades en stock</div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Cantidad a dar de baja</label>
+          <input type="number" id="bajaCantidad" min="1" value="1" oninput="updateStockResultado()">
+        </div>
+        <div class="form-field">
+          <label>Motivo</label>
+          <select id="bajaMotivo2">
+            <option value="Venta">Venta</option>
+            <option value="Rotura">Rotura</option>
+            <option value="Desguace">Desguace</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Fecha</label>
+          <input type="date" id="bajaFecha2">
+        </div>
+        <div class="form-field">
+          <label>Nota</label>
+          <input type="text" id="bajaNota2" placeholder="Ej: Vendido a cliente X">
+        </div>
+      </div>
+      <div class="stock-resultado" id="stockResultado">
+        <div class="stock-resultado-item">
+          <div class="stock-resultado-num" id="srAntes" style="color:var(--mid);">0</div>
+          <div class="stock-resultado-label">Stock actual</div>
+        </div>
+        <div style="font-size:24px;color:var(--red);">→</div>
+        <div class="stock-resultado-item">
+          <div class="stock-resultado-num" id="srDespues" style="color:var(--cyan);">0</div>
+          <div class="stock-resultado-label">Stock nuevo</div>
+        </div>
+      </div>
+      <div id="bajaStockWarning" style="text-align:center;font-size:12px;color:var(--red);min-height:18px;margin-top:4px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeBajaStock()">Cancelar</button>
+      <button class="btn-save" style="background:var(--red);" onclick="confirmarBajaStock()">↓ Confirmar baja</button>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL HISTORIAL DE BAJAS -->
@@ -678,6 +744,7 @@ function renderItems() {
         </div>
         <div class="item-card-actions">
           <button class="btn-edit" onclick="openEditModal('${item.id}')">✏ Editar</button>
+          ${!esBaja ? `<button class="btn-edit" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.2);" onclick="openBajaStockModal('${item.id}')">↓ Baja</button>` : ''}
           <button class="btn-delete" onclick="deleteItem('${item.id}')">✕</button>
         </div>
       </div>
@@ -1119,6 +1186,98 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2800);
 }
 
+// ── BAJA DE STOCK ─────────────────────────────────────────────────────────
+let bajaStockItemId = null;
+
+function openBajaStockModal(id) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+  bajaStockItemId = id;
+  const stock = Number(item.cantidad) || 1;
+  document.getElementById('bajaStockTitle').textContent = `↓ Baja de stock — ${item.nombre}`;
+  document.getElementById('bajaStockActual').textContent = stock;
+  document.getElementById('bajaCantidad').value = 1;
+  document.getElementById('bajaCantidad').max = stock;
+  document.getElementById('bajaMotivo2').value = 'Venta';
+  document.getElementById('bajaFecha2').value = new Date().toISOString().slice(0,10);
+  document.getElementById('bajaNota2').value = '';
+  document.getElementById('bajaStockWarning').textContent = '';
+  updateStockResultado();
+  document.getElementById('modalBajaStock').classList.add('active');
+}
+
+function closeBajaStock() {
+  document.getElementById('modalBajaStock').classList.remove('active');
+  bajaStockItemId = null;
+}
+
+function updateStockResultado() {
+  const item = items.find(i => i.id === bajaStockItemId);
+  if (!item) return;
+  const stockActual = Number(item.cantidad) || 1;
+  const bajaCant = Number(document.getElementById('bajaCantidad').value) || 0;
+  const stockNuevo = stockActual - bajaCant;
+  document.getElementById('srAntes').textContent = stockActual;
+  document.getElementById('srDespues').textContent = Math.max(stockNuevo, 0);
+  document.getElementById('srDespues').style.color = stockNuevo <= 0 ? 'var(--red)' : 'var(--cyan)';
+  const warning = document.getElementById('bajaStockWarning');
+  if (bajaCant > stockActual) {
+    warning.textContent = `⚠ La cantidad supera el stock disponible (${stockActual})`;
+  } else if (stockNuevo === 0) {
+    warning.textContent = '⚠ El ítem quedará con stock 0 y se marcará como Dado de baja';
+  } else {
+    warning.textContent = '';
+  }
+}
+
+async function confirmarBajaStock() {
+  const item = items.find(i => i.id === bajaStockItemId);
+  if (!item) return;
+  const stockActual = Number(item.cantidad) || 1;
+  const bajaCant = Number(document.getElementById('bajaCantidad').value) || 0;
+  const motivo = document.getElementById('bajaMotivo2').value;
+  const fecha = document.getElementById('bajaFecha2').value;
+  const nota = document.getElementById('bajaNota2').value;
+
+  if (bajaCant <= 0) { showToast('Ingresá una cantidad válida'); return; }
+  if (bajaCant > stockActual) { showToast('La cantidad supera el stock disponible'); return; }
+
+  const stockNuevo = stockActual - bajaCant;
+  const idx = items.findIndex(i => i.id === bajaStockItemId);
+
+  // Registrar movimiento en historial
+  const movimiento = {
+    fecha, motivo, nota,
+    cantidad_baja: bajaCant,
+    stock_antes: stockActual,
+    stock_despues: stockNuevo
+  };
+
+  // Actualizar item
+  const historial = item.historial_bajas || [];
+  historial.push(movimiento);
+
+  items[idx] = {
+    ...items[idx],
+    cantidad: stockNuevo,
+    historial_bajas: historial,
+    estado: stockNuevo === 0 ? 'Dado de baja' : items[idx].estado,
+    baja_motivo: stockNuevo === 0 ? motivo : items[idx].baja_motivo,
+    baja_fecha: stockNuevo === 0 ? fecha : items[idx].baja_fecha,
+    baja_nota: stockNuevo === 0 ? nota : items[idx].baja_nota
+  };
+
+  await saveItemToSupabase(items[idx]);
+  closeBajaStock();
+  applyFilters();
+
+  if (stockNuevo === 0) {
+    showToast(`⚠ Stock en 0 — ${item.nombre} dado de baja`);
+  } else {
+    showToast(`✓ Baja registrada — Stock: ${stockActual} → ${stockNuevo}`);
+  }
+}
+
 // ── MOTIVO DE BAJA ────────────────────────────────────────────────────────
 function toggleBajaPanel() {
   const estado = document.getElementById('fEstado').value;
@@ -1141,31 +1300,73 @@ function updateBajasCount() {
 }
 
 function openHistorialBajas() {
-  const bajas = items.filter(i => i.estado === 'Dado de baja')
-    .sort((a, b) => new Date(b.baja_fecha || b.created_at) - new Date(a.baja_fecha || a.created_at));
+  // Recopilar todos los movimientos: bajas totales + parciales
+  const movimientos = [];
   
+  items.forEach(item => {
+    // Movimientos parciales del historial
+    if (item.historial_bajas && item.historial_bajas.length > 0) {
+      item.historial_bajas.forEach(m => {
+        movimientos.push({
+          ...m,
+          item_codigo: item.codigo,
+          item_nombre: item.nombre,
+          item_foto: item.photos && item.photos[0],
+          item_precio: item.precio,
+          tipo: m.stock_despues === 0 ? 'baja_total' : 'baja_parcial'
+        });
+      });
+    } else if (item.estado === 'Dado de baja' && item.baja_fecha) {
+      // Baja total sin historial detallado
+      movimientos.push({
+        fecha: item.baja_fecha,
+        motivo: item.baja_motivo || '—',
+        nota: item.baja_nota || '',
+        cantidad_baja: item.cantidad || 0,
+        stock_antes: item.cantidad || 0,
+        stock_despues: 0,
+        item_codigo: item.codigo,
+        item_nombre: item.nombre,
+        item_foto: item.photos && item.photos[0],
+        item_precio: item.precio,
+        tipo: 'baja_total'
+      });
+    }
+  });
+
+  movimientos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
   const body = document.getElementById('bajasBody');
-  if (bajas.length === 0) {
-    body.innerHTML = '<div class="modal-empty">No hay ítems dados de baja todavía.</div>';
+  if (movimientos.length === 0) {
+    body.innerHTML = '<div class="modal-empty">No hay movimientos de baja registrados.</div>';
   } else {
     body.innerHTML = `
       <div style="margin-bottom:12px;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--mid);letter-spacing:1px;">
-        ${bajas.length} ítem${bajas.length !== 1 ? 's' : ''} dado${bajas.length !== 1 ? 's' : ''} de baja
+        ${movimientos.length} movimiento${movimientos.length !== 1 ? 's' : ''} registrado${movimientos.length !== 1 ? 's' : ''}
       </div>
-      ${bajas.map(item => {
-        const fecha = item.baja_fecha ? new Date(item.baja_fecha).toLocaleDateString('es-AR') : '—';
-        const foto = item.photos && item.photos[0];
+      ${movimientos.map(m => {
+        const fecha = m.fecha ? new Date(m.fecha).toLocaleDateString('es-AR') : '—';
+        const esTotalClass = m.tipo === 'baja_total' ? 'var(--red)' : 'var(--yellow)';
+        const tipoLabel = m.tipo === 'baja_total' ? 'BAJA TOTAL' : 'BAJA PARCIAL';
         return `
           <div class="baja-item" style="margin-bottom:10px;">
-            ${foto 
-              ? `<img class="baja-item-foto" src="${foto}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;">`
-              : `<div class="baja-item-foto">🏭</div>`
+            ${m.item_foto 
+              ? `<img src="${m.item_foto}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;flex-shrink:0;">`
+              : `<div style="width:56px;height:56px;background:var(--darker);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🏭</div>`
             }
             <div class="baja-item-info">
-              <div class="baja-item-codigo">${item.codigo || ''}</div>
-              <div class="baja-item-nombre">${item.nombre || ''}</div>
-              <div class="baja-item-meta">${fecha} · ${item.precio ? '$ ' + Number(item.precio).toLocaleString('es-AR') : 'Sin precio'}${item.baja_nota ? ' · ' + item.baja_nota : ''}</div>
-              <div class="baja-item-motivo">${item.baja_motivo || 'Sin motivo'}</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+                <span class="baja-item-codigo">${m.item_codigo || ''}</span>
+                <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;background:rgba(0,0,0,0.3);color:${esTotalClass};">${tipoLabel}</span>
+              </div>
+              <div class="baja-item-nombre">${m.item_nombre || ''}</div>
+              <div class="baja-item-meta">
+                ${fecha} · ${m.cantidad_baja} ud${m.cantidad_baja !== 1 ? 's' : ''} 
+                ${m.stock_antes !== undefined ? `· Stock: ${m.stock_antes} → ${m.stock_despues}` : ''}
+                ${m.item_precio ? ' · $ ' + Number(m.item_precio).toLocaleString('es-AR') + '/u' : ''}
+                ${m.nota ? ' · ' + m.nota : ''}
+              </div>
+              <div class="baja-item-motivo">${m.motivo}</div>
             </div>
           </div>
         `;
