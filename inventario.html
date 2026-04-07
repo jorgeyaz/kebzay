@@ -1294,7 +1294,14 @@ function toggleBajaPanel() {
 }
 
 function updateBajasCount() {
-  const count = items.filter(i => i.estado === 'Dado de baja').length;
+  let count = 0;
+  items.forEach(item => {
+    if (item.historial_bajas && item.historial_bajas.length > 0) {
+      count += item.historial_bajas.length;
+    } else if (item.estado === 'Dado de baja') {
+      count++;
+    }
+  });
   const el = document.getElementById('bajasCount');
   if (el) el.textContent = count;
 }
