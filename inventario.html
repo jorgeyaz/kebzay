@@ -119,6 +119,23 @@
   .estado-malo { background: rgba(239,68,68,0.15); color: var(--red); }
   .estado-baja { background: rgba(100,116,139,0.15); color: var(--baja); }
   .item-card.dado-baja { opacity: 0.5; filter: grayscale(0.4); }
+
+  /* PANEL MOTIVO BAJA */
+  .baja-panel { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; padding: 14px; display: none; flex-direction: column; gap: 10px; }
+  .baja-panel.visible { display: flex; }
+  .baja-panel-title { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--red); }
+
+  /* HISTORIAL DE BAJAS EN SIDEBAR */
+  .baja-badge { background: rgba(239,68,68,0.15); color: var(--red); font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px; letter-spacing: 1px; }
+
+  /* MODAL HISTORIAL */
+  .baja-item { background: var(--gray2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: flex; gap: 12px; align-items: flex-start; }
+  .baja-item-foto { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: var(--darker); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .baja-item-info { flex: 1; }
+  .baja-item-codigo { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 2px; color: var(--red); }
+  .baja-item-nombre { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--white); margin: 2px 0; }
+  .baja-item-meta { font-size: 12px; color: var(--mid); }
+  .baja-item-motivo { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; background: rgba(239,68,68,0.15); color: var(--red); display: inline-block; margin-top: 4px; }
   .item-precio { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; color: var(--white); }
   .item-card-actions { display: flex; gap: 6px; padding: 8px 14px 10px; }
   .btn-edit { flex: 1; background: var(--gray2); border: 1px solid var(--border); color: var(--mid); border-radius: 5px; padding: 7px; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 1px; cursor: pointer; transition: all 0.15s; text-transform: uppercase; }
@@ -216,6 +233,10 @@
       <div class="filter-all active" id="filterAll" onclick="filterByAll()">
         <span>📦 Todos los ítems</span>
       </div>
+      <div class="filter-all" onclick="openHistorialBajas()" style="color:var(--red);margin-top:4px;">
+        <span>🗑 Historial de bajas</span>
+        <span class="baja-badge" id="bajasCount">0</span>
+      </div>
       <div id="catTree"></div>
     </div>
   </aside>
@@ -244,6 +265,18 @@
     </div>
     <div class="items-grid" id="itemsGrid" style="display:none;"></div>
   </main>
+</div>
+
+<!-- MODAL HISTORIAL DE BAJAS -->
+<div class="modal-overlay" id="modalBajas">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header" style="border-color:var(--red);">
+      <span class="modal-title">🗑 Historial de bajas</span>
+      <button class="modal-close" onclick="document.getElementById('modalBajas').classList.remove('active')">✕</button>
+    </div>
+    <div class="modal-body" id="bajasBody" style="max-height:70vh;overflow-y:auto;">
+    </div>
+  </div>
 </div>
 
 <!-- MODAL VALORIZADO -->
@@ -291,7 +324,7 @@
       <div class="form-row">
         <div class="form-field">
           <label>Estado</label>
-          <select id="fEstado">
+          <select id="fEstado" onchange="toggleBajaPanel()">
             <option value="Bueno">Bueno</option>
             <option value="Regular">Regular</option>
             <option value="Malo">Malo</option>
@@ -301,6 +334,29 @@
         <div class="form-field">
           <label>Precio ($ ARS)</label>
           <input type="number" id="fPrecio" placeholder="Ej: 150000" min="0">
+        </div>
+      </div>
+      <!-- PANEL MOTIVO BAJA -->
+      <div class="baja-panel" id="bajaPanel">
+        <div class="baja-panel-title">⚠ Motivo de baja</div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Motivo</label>
+            <select id="fBajaMotivo">
+              <option value="Venta">Venta</option>
+              <option value="Rotura">Rotura</option>
+              <option value="Desguace">Desguace</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Fecha de baja</label>
+            <input type="date" id="fBajaFecha">
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Nota</label>
+          <input type="text" id="fBajaNota" placeholder="Ej: Vendido a cliente X por $ 80.000">
         </div>
       </div>
       <div class="form-row">
@@ -454,6 +510,9 @@ async function syncItemToSupabase(item) {
     precio: item.precio ? Number(item.precio) : null,
     cantidad: item.cantidad ? Number(item.cantidad) : 1,
     photos: item.photos || [],
+    baja_motivo: item.baja_motivo || null,
+    baja_fecha: item.baja_fecha || null,
+    baja_nota: item.baja_nota || null,
     created_at: item.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
@@ -579,6 +638,7 @@ function applyFilters() {
   renderItems();
   updateCounts();
   updateCounter();
+  updateBajasCount();
 }
 
 // ── RENDER ITEMS ──────────────────────────────────────────────────────────
@@ -704,6 +764,10 @@ function openAddModal() {
   document.getElementById('fPrecio').value = '';
   document.getElementById('fCantidad').value = '1';
   document.getElementById('fCodigo').value = '';
+  document.getElementById('fBajaMotivo').value = 'Venta';
+  document.getElementById('fBajaFecha').value = '';
+  document.getElementById('fBajaNota').value = '';
+  document.getElementById('bajaPanel').classList.remove('visible');
   initPhotoSlots();
   document.getElementById('modalItem').classList.add('active');
 }
@@ -724,6 +788,14 @@ function openEditModal(id) {
   document.getElementById('fPrecio').value = item.precio || '';
   document.getElementById('fCantidad').value = item.cantidad || '1';
   document.getElementById('fCodigo').value = item.codigo || '';
+  document.getElementById('fBajaMotivo').value = item.baja_motivo || 'Venta';
+  document.getElementById('fBajaFecha').value = item.baja_fecha || '';
+  document.getElementById('fBajaNota').value = item.baja_nota || '';
+  if (item.estado === 'Dado de baja') {
+    document.getElementById('bajaPanel').classList.add('visible');
+  } else {
+    document.getElementById('bajaPanel').classList.remove('visible');
+  }
   initPhotoSlots();
   document.getElementById('modalItem').classList.add('active');
 }
@@ -740,6 +812,9 @@ async function saveItem() {
   const estado = document.getElementById('fEstado').value;
   const precio = document.getElementById('fPrecio').value;
   const cantidad = document.getElementById('fCantidad').value;
+  const bajaMotivo = estado === 'Dado de baja' ? document.getElementById('fBajaMotivo').value : null;
+  const bajaFecha = estado === 'Dado de baja' ? (document.getElementById('fBajaFecha').value || new Date().toISOString().slice(0,10)) : null;
+  const bajaNota = estado === 'Dado de baja' ? document.getElementById('fBajaNota').value : null;
   const photos = currentPhotos.filter(p => p);
 
   if (!catId) { showToast('Seleccioná una categoría'); return; }
@@ -748,13 +823,13 @@ async function saveItem() {
   if (editingId) {
     const idx = items.findIndex(i => i.id === editingId);
     if (idx >= 0) {
-      items[idx] = { ...items[idx], categoria: catId, subcategoria: subId, nombre, descripcion: desc, estado, precio, cantidad, photos };
+      items[idx] = { ...items[idx], categoria: catId, subcategoria: subId, nombre, descripcion: desc, estado, precio, cantidad, baja_motivo: bajaMotivo, baja_fecha: bajaFecha, baja_nota: bajaNota, photos };
       await saveItemToSupabase(items[idx]);
       showToast('✓ Ítem actualizado');
     }
   } else {
     const codigo = generateCode(catId, subId);
-    const newItem = { id: Date.now().toString(), codigo, categoria: catId, subcategoria: subId, nombre, descripcion: desc, estado, precio, cantidad, photos, created_at: new Date().toISOString() };
+    const newItem = { id: Date.now().toString(), codigo, categoria: catId, subcategoria: subId, nombre, descripcion: desc, estado, precio, cantidad, baja_motivo: bajaMotivo, baja_fecha: bajaFecha, baja_nota: bajaNota, photos, created_at: new Date().toISOString() };
     items.push(newItem);
     await saveItemToSupabase(newItem);
     showToast(`✓ Ítem ${codigo} agregado`);
@@ -1042,6 +1117,62 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── MOTIVO DE BAJA ────────────────────────────────────────────────────────
+function toggleBajaPanel() {
+  const estado = document.getElementById('fEstado').value;
+  const panel = document.getElementById('bajaPanel');
+  if (estado === 'Dado de baja') {
+    panel.classList.add('visible');
+    // Poner fecha de hoy por defecto
+    if (!document.getElementById('fBajaFecha').value) {
+      document.getElementById('fBajaFecha').value = new Date().toISOString().slice(0,10);
+    }
+  } else {
+    panel.classList.remove('visible');
+  }
+}
+
+function updateBajasCount() {
+  const count = items.filter(i => i.estado === 'Dado de baja').length;
+  const el = document.getElementById('bajasCount');
+  if (el) el.textContent = count;
+}
+
+function openHistorialBajas() {
+  const bajas = items.filter(i => i.estado === 'Dado de baja')
+    .sort((a, b) => new Date(b.baja_fecha || b.created_at) - new Date(a.baja_fecha || a.created_at));
+  
+  const body = document.getElementById('bajasBody');
+  if (bajas.length === 0) {
+    body.innerHTML = '<div class="modal-empty">No hay ítems dados de baja todavía.</div>';
+  } else {
+    body.innerHTML = `
+      <div style="margin-bottom:12px;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--mid);letter-spacing:1px;">
+        ${bajas.length} ítem${bajas.length !== 1 ? 's' : ''} dado${bajas.length !== 1 ? 's' : ''} de baja
+      </div>
+      ${bajas.map(item => {
+        const fecha = item.baja_fecha ? new Date(item.baja_fecha).toLocaleDateString('es-AR') : '—';
+        const foto = item.photos && item.photos[0];
+        return `
+          <div class="baja-item" style="margin-bottom:10px;">
+            ${foto 
+              ? `<img class="baja-item-foto" src="${foto}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;">`
+              : `<div class="baja-item-foto">🏭</div>`
+            }
+            <div class="baja-item-info">
+              <div class="baja-item-codigo">${item.codigo || ''}</div>
+              <div class="baja-item-nombre">${item.nombre || ''}</div>
+              <div class="baja-item-meta">${fecha} · ${item.precio ? '$ ' + Number(item.precio).toLocaleString('es-AR') : 'Sin precio'}${item.baja_nota ? ' · ' + item.baja_nota : ''}</div>
+              <div class="baja-item-motivo">${item.baja_motivo || 'Sin motivo'}</div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    `;
+  }
+  document.getElementById('modalBajas').classList.add('active');
 }
 
 // ── VALORIZADO ────────────────────────────────────────────────────────────
