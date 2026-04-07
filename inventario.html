@@ -779,7 +779,7 @@ function handlePhotoInput(event) {
   if (!file || activePhotoSlot < 0) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    compressImage(ev.target.result, 900, 0.75).then(compressed => {
+    compressImage(ev.target.result, 600, 0.6).then(compressed => {
       currentPhotos[activePhotoSlot] = compressed;
       renderPhotoSlot(activePhotoSlot);
     });
