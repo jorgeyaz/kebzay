@@ -41,6 +41,25 @@
   .item-count { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; color: var(--mid); }
   .item-count strong { color: var(--cyan); font-size: 18px; }
 
+  /* PANEL VALORIZADO */
+  .modal-valorizado { background: var(--gray); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 600px; margin: auto; max-height: 90vh; overflow-y: auto; }
+  .val-total { background: linear-gradient(135deg, #1A4FD6, #29B6E8); border-radius: 10px; padding: 24px; text-align: center; margin-bottom: 20px; }
+  .val-total-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: rgba(255,255,255,0.7); margin-bottom: 8px; }
+  .val-total-num { font-family: 'Barlow Condensed', sans-serif; font-size: 42px; font-weight: 800; color: var(--white); letter-spacing: 2px; }
+  .val-total-sub { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 6px; }
+  .val-cat { background: var(--gray2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 10px; }
+  .val-cat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .val-cat-name { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--white); }
+  .val-cat-total { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700; color: var(--cyan); }
+  .val-sub-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--border); }
+  .val-sub-name { font-size: 13px; color: var(--mid); }
+  .val-sub-detail { display: flex; gap: 16px; align-items: center; }
+  .val-sub-items { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; color: var(--mid); letter-spacing: 1px; }
+  .val-sub-total { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; color: var(--white); }
+  .val-no-precio { font-size: 12px; color: var(--mid); text-align: center; padding: 8px; font-style: italic; }
+  .btn-val-pdf { width: 100%; background: var(--blue); color: var(--white); border: none; border-radius: 8px; padding: 13px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; margin-top: 16px; transition: background 0.15s; }
+  .btn-val-pdf:hover { background: #1240b0; }
+
   /* LAYOUT */
   .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 64px); }
 
@@ -179,6 +198,7 @@
   </div>
   <div class="header-right">
     <span class="item-count"><strong id="totalItems">0</strong> ítems</span>
+    <button class="btn-sm btn-cyan" onclick="openValorizado()">$ Valorizado</button>
     <button class="btn-sm btn-cyan" onclick="openAddModal()">+ Agregar</button>
     <a href="index.html" class="btn-back">← Inicio</a>
   </div>
@@ -224,6 +244,18 @@
     </div>
     <div class="items-grid" id="itemsGrid" style="display:none;"></div>
   </main>
+</div>
+
+<!-- MODAL VALORIZADO -->
+<div class="modal-overlay" id="modalValorizado">
+  <div class="modal modal-valorizado">
+    <div class="modal-header">
+      <span class="modal-title">$ Valorizado del Inventario</span>
+      <button class="modal-close" onclick="closeValorizado()">✕</button>
+    </div>
+    <div class="modal-body" id="valorizadoBody">
+    </div>
+  </div>
 </div>
 
 <!-- MODAL AGREGAR/EDITAR -->
@@ -1010,6 +1042,150 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── VALORIZADO ────────────────────────────────────────────────────────────
+function calcValorizado() {
+  let totalGeneral = 0;
+  let totalItems = 0;
+  let sinPrecio = 0;
+  const porCategoria = [];
+
+  CATEGORIAS.forEach(cat => {
+    const catItems = items.filter(i => i.categoria === cat.id && i.estado !== 'Dado de baja');
+    if (catItems.length === 0) return;
+    let catTotal = 0;
+    const porSub = [];
+    cat.subs.forEach(sub => {
+      const subItems = catItems.filter(i => i.subcategoria === sub.id);
+      if (subItems.length === 0) return;
+      let subTotal = 0;
+      let subCantidad = 0;
+      subItems.forEach(item => {
+        const cant = Number(item.cantidad) || 1;
+        const precio = Number(item.precio) || 0;
+        subTotal += precio * cant;
+        subCantidad += cant;
+        if (!item.precio) sinPrecio++;
+      });
+      catTotal += subTotal;
+      porSub.push({ nombre: sub.nombre, total: subTotal, items: subItems.length, cantidad: subCantidad });
+    });
+    totalGeneral += catTotal;
+    totalItems += catItems.length;
+    porCategoria.push({ nombre: cat.nombre, total: catTotal, items: catItems.length, subs: porSub });
+  });
+  return { totalGeneral, totalItems, sinPrecio, porCategoria };
+}
+
+function formatARS(num) {
+  return '$ ' + Math.round(num).toLocaleString('es-AR');
+}
+
+function openValorizado() {
+  const { totalGeneral, totalItems, sinPrecio, porCategoria } = calcValorizado();
+  const body = document.getElementById('valorizadoBody');
+  body.innerHTML = `
+    <div class="val-total">
+      <div class="val-total-label">Valor total del inventario activo</div>
+      <div class="val-total-num">${formatARS(totalGeneral)}</div>
+      <div class="val-total-sub">${totalItems} ítems · ${sinPrecio > 0 ? `${sinPrecio} sin precio asignado` : 'todos con precio'}</div>
+    </div>
+    ${porCategoria.map(cat => `
+      <div class="val-cat">
+        <div class="val-cat-header">
+          <span class="val-cat-name">${cat.nombre}</span>
+          <span class="val-cat-total">${formatARS(cat.total)}</span>
+        </div>
+        ${cat.subs.map(sub => `
+          <div class="val-sub-row">
+            <span class="val-sub-name">${sub.nombre}</span>
+            <div class="val-sub-detail">
+              <span class="val-sub-items">${sub.items} ítems · ${sub.cantidad} uds</span>
+              <span class="val-sub-total">${formatARS(sub.total)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('')}
+    ${sinPrecio > 0 ? `<div class="val-no-precio">⚠ ${sinPrecio} ítem${sinPrecio > 1 ? 's' : ''} sin precio no ${sinPrecio > 1 ? 'están incluidos' : 'está incluido'} en el total</div>` : ''}
+    <button class="btn-val-pdf" onclick="generateValorizadoPDF()">⬇ Exportar resumen PDF</button>
+  `;
+  document.getElementById('modalValorizado').classList.add('active');
+}
+
+function closeValorizado() {
+  document.getElementById('modalValorizado').classList.remove('active');
+}
+
+async function generateValorizadoPDF() {
+  const { totalGeneral, totalItems, sinPrecio, porCategoria } = calcValorizado();
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const W = 595, BLUE = [26,79,214], CYAN = [41,182,232], DARK = [13,17,23], WHITE = [255,255,255], MID = [107,127,153];
+  const fecha = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'long', year:'numeric' });
+
+  pdf.setFillColor(...BLUE); pdf.rect(0, 0, W, 80, 'F');
+  pdf.setTextColor(...WHITE); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(24);
+  pdf.text('KEBZAY', 40, 38);
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(...CYAN);
+  pdf.text('MAQUINARIA · VALORIZADO DE INVENTARIO', 40, 54);
+  pdf.setTextColor(200,220,255); pdf.setFontSize(10);
+  pdf.text(fecha, W - 40, 45, { align: 'right' });
+
+  pdf.setFillColor(240, 244, 255); pdf.roundedRect(30, 100, W - 60, 70, 8, 8, 'F');
+  pdf.setDrawColor(...BLUE); pdf.setLineWidth(2); pdf.roundedRect(30, 100, W - 60, 70, 8, 8, 'S');
+  pdf.setTextColor(...MID); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10);
+  pdf.text('VALOR TOTAL DEL INVENTARIO ACTIVO', W / 2, 122, { align: 'center' });
+  pdf.setTextColor(...BLUE); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(28);
+  pdf.text(formatARS(totalGeneral), W / 2, 152, { align: 'center' });
+  pdf.setTextColor(...MID); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9);
+  pdf.text(`${totalItems} ítems activos`, W / 2, 166, { align: 'center' });
+
+  let y = 200;
+  porCategoria.forEach(cat => {
+    if (y > 750) { pdf.addPage(); y = 40; }
+    pdf.setFillColor(...BLUE); pdf.roundedRect(30, y, W - 60, 28, 4, 4, 'F');
+    pdf.setTextColor(...WHITE); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(12);
+    pdf.text(cat.nombre.toUpperCase(), 44, y + 18);
+    pdf.text(formatARS(cat.total), W - 44, y + 18, { align: 'right' });
+    y += 36;
+    cat.subs.forEach(sub => {
+      if (y > 780) { pdf.addPage(); y = 40; }
+      pdf.setDrawColor(220, 228, 245); pdf.setLineWidth(0.5);
+      pdf.line(44, y + 14, W - 44, y + 14);
+      pdf.setTextColor(60, 60, 80); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(11);
+      pdf.text(sub.nombre, 44, y + 10);
+      pdf.setTextColor(...MID); pdf.setFontSize(9);
+      pdf.text(`${sub.items} ítems · ${sub.cantidad} uds`, 44, y + 22);
+      pdf.setTextColor(13,17,23); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11);
+      pdf.text(formatARS(sub.total), W - 44, y + 10, { align: 'right' });
+      y += 32;
+    });
+    y += 10;
+  });
+
+  if (sinPrecio > 0) {
+    pdf.setTextColor(...MID); pdf.setFont('helvetica', 'italic'); pdf.setFontSize(9);
+    pdf.text(`* ${sinPrecio} ítem${sinPrecio > 1 ? 's' : ''} sin precio no incluido${sinPrecio > 1 ? 's' : ''} en el total`, 30, y + 20);
+  }
+
+  const blob = pdf.output('blob');
+  const fileName = `kebzay_valorizado_${new Date().toISOString().slice(0,10)}.pdf`;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (isIOS) {
+    const file = new File([blob], fileName, { type: 'application/pdf' });
+    if (navigator.share && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ title: fileName, files: [file] }); return; } catch(e) { if (e.name === 'AbortError') return; }
+    }
+    window.open(URL.createObjectURL(blob), '_blank');
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  showToast('✓ Valorizado exportado');
 }
 
 init();
