@@ -363,63 +363,92 @@ async function init() {
   await loadItems();
 }
 
-// ── SUPABASE TABLA ────────────────────────────────────────────────────────
+// ── STORAGE: localStorage PRIMARIO, Supabase SECUNDARIO ──────────────────
+const LOCAL_KEY = 'kebzay_inventario_v2';
+
+function saveLocal() {
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(items));
+}
+
+function loadLocal() {
+  return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+}
+
 async function loadItems() {
+  // 1. Cargar local inmediatamente (sin esperar red)
+  items = loadLocal();
+  applyFilters();
+  updateCounter();
+
+  // 2. Intentar sincronizar con Supabase en segundo plano
   try {
     const res = await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?order=codigo.asc`, { headers: SUPA_HEADERS });
-    if (res.status === 404 || res.status === 400) {
-      // Tabla no existe aún — trabajar en local
-      items = JSON.parse(localStorage.getItem('kebzay_inventario') || '[]');
-    } else {
+    if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data)) {
-        items = data;
-        localStorage.setItem('kebzay_inventario', JSON.stringify(items));
-      } else {
-        items = JSON.parse(localStorage.getItem('kebzay_inventario') || '[]');
+      if (Array.isArray(data) && data.length > 0) {
+        // Supabase tiene datos — mergear con local (Supabase gana en conflicto)
+        const supaIds = new Set(data.map(i => i.id));
+        const localOnly = items.filter(i => !supaIds.has(i.id));
+        items = [...data, ...localOnly];
+        saveLocal();
+        applyFilters();
+        updateCounter();
+        // Subir los locales que no están en Supabase
+        for (const item of localOnly) {
+          syncItemToSupabase(item);
+        }
+      } else if (items.length > 0) {
+        // Supabase vacío pero tenemos local — subir todo
+        for (const item of items) {
+          syncItemToSupabase(item);
+        }
       }
     }
   } catch(e) {
-    items = JSON.parse(localStorage.getItem('kebzay_inventario') || '[]');
+    console.warn('Supabase no disponible, usando local', e);
   }
-  applyFilters();
-  updateCounter();
+}
+
+async function syncItemToSupabase(item) {
+  // Preparar item limpio para Supabase — solo campos que existen en la tabla
+  const clean = {
+    id: item.id,
+    codigo: item.codigo || null,
+    categoria: item.categoria || null,
+    subcategoria: item.subcategoria || null,
+    nombre: item.nombre || null,
+    descripcion: item.descripcion || null,
+    estado: item.estado || null,
+    precio: item.precio ? Number(item.precio) : null,
+    cantidad: item.cantidad ? Number(item.cantidad) : 1,
+    photos: item.photos || [],
+    created_at: item.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  try {
+    // Upsert — inserta o actualiza según el id
+    await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario`, {
+      method: 'POST',
+      headers: { ...SUPA_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(clean)
+    });
+  } catch(e) {
+    console.warn('Error sync Supabase:', e);
+  }
 }
 
 async function saveItemToSupabase(item) {
-  try {
-    // Verificar si ya existe en Supabase
-    const checkRes = await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?id=eq.${item.id}&select=id`, { headers: SUPA_HEADERS });
-    const existing = await checkRes.json();
-    
-    if (existing && existing.length > 0) {
-      // Update
-      await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?id=eq.${item.id}`, {
-        method: 'PATCH', headers: SUPA_HEADERS,
-        body: JSON.stringify({ ...item, updated_at: new Date().toISOString() })
-      });
-    } else {
-      // Insert
-      await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario`, {
-        method: 'POST', headers: SUPA_HEADERS,
-        body: JSON.stringify(item)
-      });
-    }
-  } catch(e) {
-    console.warn('Supabase no disponible, guardando local', e);
-  }
+  saveLocal(); // guardar local primero — inmediato
+  syncItemToSupabase(item); // sync supabase en segundo plano — no await
 }
 
 async function deleteItemFromSupabase(id) {
+  saveLocal(); // guardar local primero
   try {
     await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?id=eq.${id}`, {
       method: 'DELETE', headers: SUPA_HEADERS
     });
   } catch(e) { console.warn(e); }
-}
-
-function saveLocal() {
-  localStorage.setItem('kebzay_inventario', JSON.stringify(items));
 }
 
 // ── CÓDIGO CORRELATIVO ────────────────────────────────────────────────────
