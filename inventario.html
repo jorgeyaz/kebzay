@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KEBZAY — Inventario</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap');
   :root {
@@ -129,6 +131,11 @@
   .stock-resultado-num { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 800; }
   .stock-resultado-label { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--mid); }
 
+  /* ETIQUETAS */
+  .etiqueta-preview { background: #fff; border-radius: 6px; padding: 8px; display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+  .etiqueta-nombre-text { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; color: #000; text-align: center; line-height: 1.2; }
+  .etiqueta-codigo-text { font-family: 'Barlow Condensed', sans-serif; color: #1A4FD6; letter-spacing: 1px; }
+
   /* PANEL MOTIVO BAJA */
   .baja-panel { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; padding: 14px; display: none; flex-direction: column; gap: 10px; }
   .baja-panel.visible { display: flex; }
@@ -225,6 +232,7 @@
   <div class="header-right">
     <span class="item-count"><strong id="totalItems">0</strong> ítems</span>
     <button class="btn-sm btn-cyan" onclick="openValorizado()">$ Valorizado</button>
+    <button class="btn-sm btn-cyan" onclick="openEtiquetasModal()">🏷 Etiquetas</button>
     <button class="btn-sm btn-cyan" onclick="openAddModal()">+ Agregar</button>
     <a href="index.html" class="btn-back">← Inicio</a>
   </div>
@@ -274,6 +282,53 @@
     </div>
     <div class="items-grid" id="itemsGrid" style="display:none;"></div>
   </main>
+</div>
+
+<!-- MODAL ETIQUETAS -->
+<div class="modal-overlay" id="modalEtiquetas">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <span class="modal-title">🏷 Generar etiquetas</span>
+      <button class="modal-close" onclick="closeEtiquetas()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-section-label">Tamaño de etiqueta (mm)</div>
+      <div class="form-row" style="margin-top:8px;">
+        <div class="form-field">
+          <label>Ancho</label>
+          <select id="etqAncho">
+            <option value="62">62 mm</option>
+            <option value="100" selected>100 mm</option>
+            <option value="50">50 mm</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Alto</label>
+          <select id="etqAlto">
+            <option value="29">29 mm</option>
+            <option value="50" selected>50 mm</option>
+            <option value="70">70 mm</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-field" style="margin-top:8px;">
+        <label>Ítems a etiquetar</label>
+        <select id="etqSeleccion">
+          <option value="seleccionados">Ítems seleccionados (${selectedIds.size})</option>
+          <option value="todos">Todos los ítems activos</option>
+        </select>
+      </div>
+      <div style="background:var(--darker);border-radius:8px;padding:16px;margin-top:12px;text-align:center;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:2px;color:var(--mid);margin-bottom:12px;text-transform:uppercase;">Preview de etiqueta</div>
+        <div id="etqPreview" style="display:inline-block;"></div>
+      </div>
+      <div id="etqInfo" style="text-align:center;font-size:12px;color:var(--mid);margin-top:8px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeEtiquetas()">Cancelar</button>
+      <button class="btn-save" onclick="generarEtiquetasPDF()">⬇ Generar PDF etiquetas</button>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL INGRESO DE STOCK -->
@@ -1637,6 +1692,165 @@ async function generateValorizadoPDF() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   showToast('✓ Valorizado exportado');
+}
+
+// ── ETIQUETAS QR + BARCODE ────────────────────────────────────────────────
+const BASE_URL = 'https://jorgeyaz.github.io/kebzay/item.html?id=';
+
+function openEtiquetasModal() {
+  document.getElementById('etqSeleccion').options[0].text = 
+    `Ítems seleccionados (${selectedIds.size})`;
+  if (selectedIds.size === 0) {
+    document.getElementById('etqSeleccion').value = 'todos';
+  }
+  renderEtqPreview();
+  document.getElementById('modalEtiquetas').classList.add('active');
+}
+
+function closeEtiquetas() {
+  document.getElementById('modalEtiquetas').classList.remove('active');
+  document.getElementById('etqPreview').innerHTML = '';
+}
+
+function renderEtqPreview() {
+  const preview = document.getElementById('etqPreview');
+  preview.innerHTML = '';
+  const ejemplo = items.find(i => i.estado !== 'Dado de baja') || items[0];
+  if (!ejemplo) return;
+  const ancho = parseInt(document.getElementById('etqAncho').value);
+  const alto = parseInt(document.getElementById('etqAlto').value);
+  generarEtiquetaDOM(preview, ejemplo, ancho, alto, 1.2);
+}
+
+function generarEtiquetaDOM(container, item, anchoMM, altoMM, escala) {
+  const anchoP = anchoMM * 3.78 * escala;
+  const altoP = altoMM * 3.78 * escala;
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = `width:${anchoP}px;height:${altoP}px;background:#fff;border-radius:4px;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;overflow:hidden;`;
+
+  const nombre = document.createElement('div');
+  nombre.style.cssText = `font-family:'Barlow Condensed',sans-serif;font-weight:700;color:#000;text-align:center;font-size:${Math.max(7, altoP * 0.1)}px;line-height:1.1;width:100%;overflow:hidden;`;
+  nombre.textContent = (item.nombre || '').substring(0, 30);
+  wrapper.appendChild(nombre);
+
+  const qrDiv = document.createElement('div');
+  const qrSize = Math.round(Math.min(altoP * 0.45, anchoP * 0.38));
+  qrDiv.style.cssText = `width:${qrSize}px;height:${qrSize}px;flex-shrink:0;`;
+  try {
+    new QRCode(qrDiv, {
+      text: BASE_URL + (item.codigo || item.id),
+      width: qrSize, height: qrSize,
+      colorDark: '#000', colorLight: '#fff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch(e) {}
+  wrapper.appendChild(qrDiv);
+
+  const barcodeDiv = document.createElement('div');
+  barcodeDiv.style.cssText = `width:100%;display:flex;align-items:center;justify-content:center;`;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  barcodeDiv.appendChild(svg);
+  try {
+    JsBarcode(svg, item.codigo || item.id, {
+      format: 'CODE128', width: Math.max(1, anchoP / 80),
+      height: altoP * 0.16, displayValue: true,
+      fontSize: Math.max(6, altoP * 0.07), margin: 1,
+      background: '#fff', lineColor: '#000'
+    });
+  } catch(e) {}
+  wrapper.appendChild(barcodeDiv);
+  container.appendChild(wrapper);
+}
+
+async function generarEtiquetasPDF() {
+  const seleccion = document.getElementById('etqSeleccion').value;
+  const anchoMM = parseInt(document.getElementById('etqAncho').value);
+  const altoMM = parseInt(document.getElementById('etqAlto').value);
+
+  let itemsEtq = seleccion === 'seleccionados'
+    ? items.filter(i => selectedIds.has(i.id))
+    : items.filter(i => i.estado !== 'Dado de baja');
+
+  if (itemsEtq.length === 0) { showToast('No hay ítems para etiquetar'); return; }
+  showToast(`Generando ${itemsEtq.length} etiqueta${itemsEtq.length !== 1 ? 's' : ''}...`);
+
+  const tempDiv = document.createElement('div');
+  tempDiv.style.cssText = 'position:fixed;left:-9999px;top:0;';
+  document.body.appendChild(tempDiv);
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({
+    orientation: anchoMM > altoMM ? 'landscape' : 'portrait',
+    unit: 'mm', format: [anchoMM, altoMM]
+  });
+
+  for (let i = 0; i < itemsEtq.length; i++) {
+    if (i > 0) pdf.addPage([anchoMM, altoMM]);
+    const item = itemsEtq[i];
+    pdf.setFillColor(255, 255, 255); pdf.rect(0, 0, anchoMM, altoMM, 'F');
+
+    // Nombre
+    pdf.setTextColor(0,0,0); pdf.setFont('helvetica','bold');
+    pdf.setFontSize(Math.max(5, altoMM * 0.12));
+    const txt = pdf.splitTextToSize((item.nombre||'').substring(0,35), anchoMM-3);
+    pdf.text(txt[0], anchoMM/2, altoMM*0.1, { align:'center' });
+
+    // QR
+    const qrCont = document.createElement('div');
+    tempDiv.appendChild(qrCont);
+    const qrPx = Math.round(Math.min(altoMM*0.45, anchoMM*0.38) * 3.78);
+    try {
+      new QRCode(qrCont, { text: BASE_URL+(item.codigo||item.id), width:qrPx, height:qrPx, colorDark:'#000', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M });
+      await sleep(100);
+      const qrEl = qrCont.querySelector('canvas') || qrCont.querySelector('img');
+      if (qrEl) {
+        const qrData = qrEl.tagName==='CANVAS' ? qrEl.toDataURL() : qrEl.src;
+        const qMM = Math.min(altoMM*0.45, anchoMM*0.38);
+        pdf.addImage(qrData,'PNG',anchoMM/2-qMM/2, altoMM*0.15, qMM, qMM);
+      }
+    } catch(e) { console.warn(e); }
+
+    // Barcode
+    const bcCont = document.createElement('div');
+    const bcSVG = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    bcCont.appendChild(bcSVG); tempDiv.appendChild(bcCont);
+    try {
+      JsBarcode(bcSVG, item.codigo||item.id, { format:'CODE128', width:1.5, height:Math.round(altoMM*0.18*3.78), displayValue:true, fontSize:Math.max(8,altoMM*0.08*3.78), margin:2, background:'#fff', lineColor:'#000' });
+      const svgData = new XMLSerializer().serializeToString(bcSVG);
+      const svgUrl = URL.createObjectURL(new Blob([svgData],{type:'image/svg+xml'}));
+      const bcImg = await loadImage(svgUrl);
+      URL.revokeObjectURL(svgUrl);
+      const bcCanvas = document.createElement('canvas');
+      bcCanvas.width=bcImg.width; bcCanvas.height=bcImg.height;
+      bcCanvas.getContext('2d').drawImage(bcImg,0,0);
+      const bW=anchoMM-4, bH=bW*(bcImg.height/bcImg.width);
+      pdf.addImage(bcCanvas.toDataURL('image/png'),'PNG',2,altoMM-bH-1,bW,bH);
+    } catch(e) {
+      pdf.setTextColor(26,79,214); pdf.setFont('helvetica','bold');
+      pdf.setFontSize(Math.max(6,altoMM*0.09));
+      pdf.text(item.codigo||item.id, anchoMM/2, altoMM-2, {align:'center'});
+    }
+  }
+
+  document.body.removeChild(tempDiv);
+  closeEtiquetas();
+
+  const blob = pdf.output('blob');
+  const fileName = `kebzay_etiquetas_${new Date().toISOString().slice(0,10)}.pdf`;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (isIOS) {
+    const file = new File([blob],fileName,{type:'application/pdf'});
+    if (navigator.share && navigator.canShare({files:[file]})) {
+      try { await navigator.share({title:fileName,files:[file]}); return; } catch(e) { if(e.name==='AbortError') return; }
+    }
+    window.open(URL.createObjectURL(blob),'_blank');
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=fileName;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  showToast('✓ Etiquetas generadas');
 }
 
 init();

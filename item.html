@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KEBZAY — Ficha de ítem</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap');
+  :root {
+    --blue: #1A4FD6;
+    --cyan: #29B6E8;
+    --dark: #0d1117;
+    --darker: #080c12;
+    --gray: #161d27;
+    --border: #1e2a3a;
+    --mid: #6b7f99;
+    --white: #ffffff;
+    --green: #22c55e;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Barlow', sans-serif; background: var(--darker); color: var(--white); min-height: 100vh; }
+
+  header { background: var(--gray); border-bottom: 2px solid var(--blue); padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+  .header-k { width: 32px; height: 32px; flex-shrink: 0; }
+  .header-text strong { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; letter-spacing: 3px; color: var(--white); }
+  .header-text span { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 2px; color: var(--cyan); display: block; text-transform: uppercase; }
+
+  .container { max-width: 700px; margin: 0 auto; padding: 24px 16px; }
+
+  .loading { text-align: center; padding: 60px 20px; color: var(--mid); font-family: 'Barlow Condensed', sans-serif; font-size: 16px; letter-spacing: 2px; text-transform: uppercase; }
+
+  .item-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .item-codigo { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 3px; color: var(--cyan); text-transform: uppercase; margin-bottom: 6px; }
+  .item-nombre { font-family: 'Barlow Condensed', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: 2px; color: var(--white); line-height: 1.1; }
+  .item-cat { font-size: 13px; color: var(--mid); margin-top: 6px; }
+
+  .estado-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 1px; padding: 6px 14px; border-radius: 6px; white-space: nowrap; }
+  .estado-bueno { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+  .estado-regular { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+  .estado-malo { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .estado-baja { background: rgba(100,116,139,0.15); color: #64748b; border: 1px solid rgba(100,116,139,0.3); }
+
+  .fotos-grid { display: grid; gap: 4px; margin-bottom: 20px; border-radius: 10px; overflow: hidden; }
+  .fotos-grid.count-1 { grid-template-columns: 1fr; }
+  .fotos-grid.count-2 { grid-template-columns: 1fr 1fr; }
+  .fotos-grid.count-3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+  .fotos-grid.count-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+  .foto-principal { width: 100%; height: 320px; object-fit: cover; display: block; }
+  .fotos-grid.count-3 .foto-principal { grid-row: span 2; }
+  .foto-sec { width: 100%; height: 160px; object-fit: cover; display: block; }
+  .fotos-grid.count-2 .foto-sec { height: 320px; }
+
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .info-card { background: var(--gray); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .info-card-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--mid); margin-bottom: 6px; }
+  .info-card-value { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; color: var(--white); }
+  .info-card-value.precio { color: var(--cyan); }
+
+  .desc-box { background: var(--gray); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  .desc-box-title { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--mid); margin-bottom: 10px; }
+  .desc-text { font-size: 14px; color: #ccc; line-height: 1.7; white-space: pre-line; }
+
+  .no-encontrado { text-align: center; padding: 60px 20px; }
+  .no-encontrado h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; letter-spacing: 2px; color: var(--mid); margin-bottom: 12px; }
+  .no-encontrado p { font-size: 14px; color: var(--mid); }
+
+  footer { text-align: center; padding: 24px; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 2px; color: var(--border); text-transform: uppercase; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <svg class="header-k" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="8" fill="#1A4FD6"/><text x="50" y="72" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="62" font-weight="900" fill="#29B6E8">K</text></svg>
+  <div class="header-text">
+    <strong>KEBZAY</strong>
+    <span>Maquinaria · Ficha de ítem</span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="loading" id="loading">Cargando ficha...</div>
+  <div id="itemContent" style="display:none;"></div>
+  <div class="no-encontrado" id="noEncontrado" style="display:none;">
+    <h2>Ítem no encontrado</h2>
+    <p>El código no corresponde a ningún ítem del inventario.</p>
+  </div>
+</div>
+
+<footer>KEBZAY © 2026 · Maquinaria Usada</footer>
+
+<script>
+const SUPA_URL = 'https://gjsybqqwwwjntkobpodg.supabase.co';
+const SUPA_KEY = 'sb_publishable_N9daPMK4JxgWAdigPhrYyA_JB2voiQf';
+
+const CATEGORIAS = {
+  gastronomia: { nombre: 'Gastronomía', subs: { acero_inox:'Acero inox', maquinaria:'Maquinaria', muebles:'Muebles', vajilla:'Vajilla y útiles' }},
+  panificados: { nombre: 'Panificados', subs: { maquinaria:'Maquinaria', carros:'Carros y útiles' }},
+  frio: { nombre: 'Frío', subs: { heladeras:'Heladeras', equipos:'Equipos de frío', camaras:'Cámaras', paneles:'Paneles de cámaras' }},
+  carnicos: { nombre: 'Cárnicos', subs: { maquinaria:'Maquinaria', carros:'Carros y útiles' }},
+  logistica: { nombre: 'Logística', subs: { racks:'Racks', movimiento:'Máquinas de movimiento' }}
+};
+
+async function loadItem() {
+  const params = new URLSearchParams(window.location.search);
+  const codigo = params.get('id') || params.get('codigo');
+
+  if (!codigo) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('noEncontrado').style.display = 'block';
+    return;
+  }
+
+  try {
+    // Buscar por código o por id
+    const res = await fetch(
+      `${SUPA_URL}/rest/v1/kebzay_inventario?or=(codigo.eq.${encodeURIComponent(codigo)},id.eq.${encodeURIComponent(codigo)})&limit=1`,
+      { headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY } }
+    );
+    const data = await res.json();
+
+    if (!data || data.length === 0) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('noEncontrado').style.display = 'block';
+      return;
+    }
+
+    renderItem(data[0]);
+  } catch(e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('noEncontrado').style.display = 'block';
+    console.error(e);
+  }
+}
+
+function renderItem(item) {
+  const cat = CATEGORIAS[item.categoria];
+  const catNombre = cat ? cat.nombre : '';
+  const subNombre = cat && cat.subs[item.subcategoria] ? cat.subs[item.subcategoria] : '';
+  const estadoClass = item.estado === 'Bueno' ? 'estado-bueno' : item.estado === 'Regular' ? 'estado-regular' : item.estado === 'Malo' ? 'estado-malo' : 'estado-baja';
+  const fotos = (item.photos || []).filter(Boolean);
+  const cantidad = Number(item.cantidad) || 0;
+
+  let fotosHTML = '';
+  if (fotos.length > 0) {
+    const countClass = `count-${Math.min(fotos.length, 4)}`;
+    fotosHTML = `<div class="fotos-grid ${countClass}">
+      ${fotos.slice(0,4).map((f, i) => 
+        `<img class="${i === 0 ? 'foto-principal' : 'foto-sec'}" src="${f}" alt="Foto ${i+1}">`
+      ).join('')}
+    </div>`;
+  }
+
+  const content = document.getElementById('itemContent');
+  content.innerHTML = `
+    <div class="item-header">
+      <div>
+        <div class="item-codigo">${item.codigo || ''}</div>
+        <div class="item-nombre">${item.nombre || ''}</div>
+        <div class="item-cat">${[catNombre, subNombre].filter(Boolean).join(' › ')}</div>
+      </div>
+      <span class="estado-badge ${estadoClass}">${item.estado || ''}</span>
+    </div>
+
+    ${fotosHTML}
+
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-card-label">Precio de venta</div>
+        <div class="info-card-value precio">${item.precio ? '$ ' + Number(item.precio).toLocaleString('es-AR') : '—'}</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">Stock disponible</div>
+        <div class="info-card-value" style="color:${cantidad > 0 ? 'var(--green)' : 'var(--red)'};">${cantidad} ud${cantidad !== 1 ? 's' : ''}</div>
+      </div>
+    </div>
+
+    ${item.descripcion ? `
+    <div class="desc-box">
+      <div class="desc-box-title">Descripción</div>
+      <div class="desc-text">${item.descripcion}</div>
+    </div>` : ''}
+  `;
+
+  document.title = `KEBZAY — ${item.nombre || item.codigo}`;
+  document.getElementById('loading').style.display = 'none';
+  content.style.display = 'block';
+}
+
+loadItem();
+</script>
+</body>
+</html>
