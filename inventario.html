@@ -276,6 +276,62 @@
   </main>
 </div>
 
+<!-- MODAL INGRESO DE STOCK -->
+<div class="modal-overlay" id="modalIngresoStock">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header" style="border-color:var(--green);">
+      <span class="modal-title" id="ingresoStockTitle">↑ Ingreso de stock</span>
+      <button class="modal-close" onclick="closeIngresoStock()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="stock-actual">
+        <div class="stock-actual-num" id="ingresoStockActual" style="color:var(--green);">0</div>
+        <div class="stock-actual-label">Unidades en stock</div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Cantidad a ingresar</label>
+          <input type="number" id="ingresoCantidad" min="1" value="1" oninput="updateIngresoResultado()">
+        </div>
+        <div class="form-field">
+          <label>Motivo</label>
+          <select id="ingresoMotivo">
+            <option value="Compra">Compra</option>
+            <option value="Devolución">Devolución</option>
+            <option value="Ajuste de inventario">Ajuste de inventario</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Fecha</label>
+          <input type="date" id="ingresoFecha">
+        </div>
+        <div class="form-field">
+          <label>Nota</label>
+          <input type="text" id="ingresoNota" placeholder="Ej: Compra proveedor X">
+        </div>
+      </div>
+      <div class="stock-resultado">
+        <div class="stock-resultado-item">
+          <div class="stock-resultado-num" id="irAntes" style="color:var(--mid);">0</div>
+          <div class="stock-resultado-label">Stock actual</div>
+        </div>
+        <div style="font-size:24px;color:var(--green);">→</div>
+        <div class="stock-resultado-item">
+          <div class="stock-resultado-num" id="irDespues" style="color:var(--green);">0</div>
+          <div class="stock-resultado-label">Stock nuevo</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeIngresoStock()">Cancelar</button>
+      <button class="btn-save" style="background:var(--green);" onclick="confirmarIngresoStock()">↑ Confirmar ingreso</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL BAJA DE STOCK -->
 <div class="modal-overlay" id="modalBajaStock">
   <div class="modal" style="max-width:440px;">
@@ -428,7 +484,7 @@
       <div class="form-row">
         <div class="form-field">
           <label>Cantidad en stock</label>
-          <input type="number" id="fCantidad" placeholder="Ej: 3" min="0" value="1">
+          <input type="number" id="fCantidad" placeholder="—" readonly style="opacity:0.5;cursor:default;" title="La cantidad se modifica via Ingreso o Baja de stock">
         </div>
         <div class="form-field">
           <label>Código (autogenerado)</label>
@@ -744,6 +800,7 @@ function renderItems() {
         </div>
         <div class="item-card-actions">
           <button class="btn-edit" onclick="openEditModal('${item.id}')">✏ Editar</button>
+          ${!esBaja ? `<button class="btn-edit" style="background:rgba(34,197,94,0.1);color:var(--green);border-color:rgba(34,197,94,0.2);" onclick="openIngresoStockModal('${item.id}')">↑ Ingreso</button>` : ''}
           ${!esBaja ? `<button class="btn-edit" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.2);" onclick="openBajaStockModal('${item.id}')">↓ Baja</button>` : ''}
           <button class="btn-delete" onclick="deleteItem('${item.id}')">✕</button>
         </div>
@@ -1184,6 +1241,80 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── INGRESO DE STOCK ──────────────────────────────────────────────────────
+let ingresoStockItemId = null;
+
+function openIngresoStockModal(id) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+  ingresoStockItemId = id;
+  const stock = Number(item.cantidad) || 0;
+  document.getElementById('ingresoStockTitle').textContent = `↑ Ingreso de stock — ${item.nombre}`;
+  document.getElementById('ingresoStockActual').textContent = stock;
+  document.getElementById('ingresoCantidad').value = 1;
+  document.getElementById('ingresoMotivo').value = 'Compra';
+  document.getElementById('ingresoFecha').value = new Date().toISOString().slice(0,10);
+  document.getElementById('ingresoNota').value = '';
+  updateIngresoResultado();
+  document.getElementById('modalIngresoStock').classList.add('active');
+}
+
+function closeIngresoStock() {
+  document.getElementById('modalIngresoStock').classList.remove('active');
+  ingresoStockItemId = null;
+}
+
+function updateIngresoResultado() {
+  const item = items.find(i => i.id === ingresoStockItemId);
+  if (!item) return;
+  const stockActual = Number(item.cantidad) || 0;
+  const ingresoCant = Number(document.getElementById('ingresoCantidad').value) || 0;
+  const stockNuevo = stockActual + ingresoCant;
+  document.getElementById('irAntes').textContent = stockActual;
+  document.getElementById('irDespues').textContent = stockNuevo;
+}
+
+async function confirmarIngresoStock() {
+  const item = items.find(i => i.id === ingresoStockItemId);
+  if (!item) return;
+  const stockActual = Number(item.cantidad) || 0;
+  const ingresoCant = Number(document.getElementById('ingresoCantidad').value) || 0;
+  const motivo = document.getElementById('ingresoMotivo').value;
+  const fecha = document.getElementById('ingresoFecha').value;
+  const nota = document.getElementById('ingresoNota').value;
+
+  if (ingresoCant <= 0) { showToast('Ingresá una cantidad válida'); return; }
+
+  const stockNuevo = stockActual + ingresoCant;
+  const idx = items.findIndex(i => i.id === ingresoStockItemId);
+
+  const movimiento = {
+    fecha, motivo, nota,
+    cantidad_ingreso: ingresoCant,
+    stock_antes: stockActual,
+    stock_despues: stockNuevo,
+    tipo: 'ingreso'
+  };
+
+  const historial = item.historial_ingresos || [];
+  historial.push(movimiento);
+
+  // Si estaba dado de baja y entra stock, reactivar
+  const nuevoEstado = item.estado === 'Dado de baja' && stockNuevo > 0 ? 'Bueno' : item.estado;
+
+  items[idx] = {
+    ...items[idx],
+    cantidad: stockNuevo,
+    historial_ingresos: historial,
+    estado: nuevoEstado
+  };
+
+  await saveItemToSupabase(items[idx]);
+  closeIngresoStock();
+  applyFilters();
+  showToast(`✓ Ingreso registrado — Stock: ${stockActual} → ${stockNuevo}`);
 }
 
 // ── BAJA DE STOCK ─────────────────────────────────────────────────────────
