@@ -800,7 +800,7 @@ function renderItems() {
         </div>
         <div class="item-card-actions">
           <button class="btn-edit" onclick="openEditModal('${item.id}')">✏ Editar</button>
-          ${!esBaja ? `<button class="btn-edit" style="background:rgba(34,197,94,0.1);color:var(--green);border-color:rgba(34,197,94,0.2);" onclick="openIngresoStockModal('${item.id}')">↑ Ingreso</button>` : ''}
+          <button class="btn-edit" style="background:rgba(34,197,94,0.1);color:var(--green);border-color:rgba(34,197,94,0.2);" onclick="openIngresoStockModal('${item.id}')">↑ Ingreso</button>
           ${!esBaja ? `<button class="btn-edit" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.2);" onclick="openBajaStockModal('${item.id}')">↓ Baja</button>` : ''}
           <button class="btn-delete" onclick="deleteItem('${item.id}')">✕</button>
         </div>
