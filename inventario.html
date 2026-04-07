@@ -1429,8 +1429,6 @@ function updateBajasCount() {
   items.forEach(item => {
     if (item.historial_bajas && item.historial_bajas.length > 0) {
       count += item.historial_bajas.length;
-    } else if (item.estado === 'Dado de baja') {
-      count++;
     }
   });
   const el = document.getElementById('bajasCount');
@@ -1438,11 +1436,9 @@ function updateBajasCount() {
 }
 
 function openHistorialBajas() {
-  // Recopilar todos los movimientos: bajas totales + parciales
   const movimientos = [];
   
   items.forEach(item => {
-    // Movimientos parciales del historial
     if (item.historial_bajas && item.historial_bajas.length > 0) {
       item.historial_bajas.forEach(m => {
         movimientos.push({
@@ -1453,21 +1449,6 @@ function openHistorialBajas() {
           item_precio: item.precio,
           tipo: m.stock_despues === 0 ? 'baja_total' : 'baja_parcial'
         });
-      });
-    } else if (item.estado === 'Dado de baja' && item.baja_fecha) {
-      // Baja total sin historial detallado
-      movimientos.push({
-        fecha: item.baja_fecha,
-        motivo: item.baja_motivo || '—',
-        nota: item.baja_nota || '',
-        cantidad_baja: item.cantidad || 0,
-        stock_antes: item.cantidad || 0,
-        stock_despues: 0,
-        item_codigo: item.codigo,
-        item_nombre: item.nombre,
-        item_foto: item.photos && item.photos[0],
-        item_precio: item.precio,
-        tipo: 'baja_total'
       });
     }
   });
