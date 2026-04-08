@@ -1803,32 +1803,27 @@ async function generarEtiquetasPDF() {
     const txt = pdf.splitTextToSize((item.nombre||'').substring(0,35), anchoMM-3);
     pdf.text(txt[0], anchoMM/2, altoMM*0.1, {align:'center'});
 
-    // QR generado sincrónicamente con qrcode-generator
+    // QR dibujado directo con jsPDF — sin addImage, sin cache posible
     const codigo = item.codigo || item.id;
     const qMM = Math.min(altoMM*0.45, anchoMM*0.38);
+    const qX = anchoMM/2 - qMM/2;
+    const qY = altoMM*0.15;
     try {
       const qr = qrcode(0, 'M');
       qr.addData(BASE_URL + codigo);
       qr.make();
       const moduleCount = qr.getModuleCount();
-      const qrCanvas = document.createElement('canvas');
-      const qPx = Math.round(qMM * 3.78);
-      qrCanvas.width = qPx + 1; qrCanvas.height = qPx; // +1 pixel único por ítem
-      const ctx = qrCanvas.getContext('2d');
-      const cellSize = qPx / moduleCount;
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,qrCanvas.width,qPx);
-      ctx.fillStyle = '#000000';
+      const cellMM = qMM / moduleCount;
+      pdf.setFillColor(255,255,255);
+      pdf.rect(qX, qY, qMM, qMM, 'F');
+      pdf.setFillColor(0,0,0);
       for (let row = 0; row < moduleCount; row++) {
         for (let col = 0; col < moduleCount; col++) {
           if (qr.isDark(row, col)) {
-            ctx.fillRect(Math.floor(col*cellSize), Math.floor(row*cellSize), Math.ceil(cellSize), Math.ceil(cellSize));
+            pdf.rect(qX + col*cellMM, qY + row*cellMM, cellMM, cellMM, 'F');
           }
         }
       }
-      // Pixel invisible único para evitar cache de jsPDF
-      ctx.fillStyle = `rgba(255,255,255,${0.99 - i*0.0001})`;
-      ctx.fillRect(qPx, 0, 1, 1);
-      pdf.addImage(qrCanvas.toDataURL('image/png'), 'PNG', anchoMM/2-qMM/2, altoMM*0.15, qMM, qMM, `qr_${codigo}`, 'NONE');
     } catch(e) { console.warn('QR error:', e); }
 
     // Barcode via SVG → canvas
