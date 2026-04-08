@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KEBZAY — Inventario</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap');
@@ -1737,12 +1737,24 @@ function generarEtiquetaDOM(container, item, anchoMM, altoMM, escala) {
   const qrSize = Math.round(Math.min(altoP * 0.45, anchoP * 0.38));
   qrDiv.style.cssText = `width:${qrSize}px;height:${qrSize}px;flex-shrink:0;`;
   try {
-    new QRCode(qrDiv, {
-      text: BASE_URL + (item.codigo || item.id),
-      width: qrSize, height: qrSize,
-      colorDark: '#000', colorLight: '#fff',
-      correctLevel: QRCode.CorrectLevel.M
-    });
+    const qr = qrcode(0, 'M');
+    qr.addData(BASE_URL + (item.codigo || item.id));
+    qr.make();
+    const moduleCount = qr.getModuleCount();
+    const qrCanvas = document.createElement('canvas');
+    qrCanvas.width = qrSize; qrCanvas.height = qrSize;
+    const ctx = qrCanvas.getContext('2d');
+    const cellSize = qrSize / moduleCount;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,qrSize,qrSize);
+    ctx.fillStyle = '#000000';
+    for (let row = 0; row < moduleCount; row++) {
+      for (let col = 0; col < moduleCount; col++) {
+        if (qr.isDark(row, col)) {
+          ctx.fillRect(Math.floor(col*cellSize), Math.floor(row*cellSize), Math.ceil(cellSize), Math.ceil(cellSize));
+        }
+      }
+    }
+    qrDiv.appendChild(qrCanvas);
   } catch(e) {}
   wrapper.appendChild(qrDiv);
 
@@ -1791,21 +1803,30 @@ async function generarEtiquetasPDF() {
     const txt = pdf.splitTextToSize((item.nombre||'').substring(0,35), anchoMM-3);
     pdf.text(txt[0], anchoMM/2, altoMM*0.1, {align:'center'});
 
-    // QR via Google Charts API — cada llamada es totalmente independiente
+    // QR generado sincrónicamente con qrcode-generator
     const codigo = item.codigo || item.id;
-    const qrText = encodeURIComponent(BASE_URL + codigo);
     const qMM = Math.min(altoMM*0.45, anchoMM*0.38);
-    const qPx = Math.round(qMM * 3.78);
-    const qrApiUrl = `https://chart.googleapis.com/chart?chs=${qPx}x${qPx}&cht=qr&chl=${qrText}&choe=UTF-8&chld=M|1`;
     try {
-      const qrImg = await loadImage(qrApiUrl);
+      const qr = qrcode(0, 'M');
+      qr.addData(BASE_URL + codigo);
+      qr.make();
+      const moduleCount = qr.getModuleCount();
       const qrCanvas = document.createElement('canvas');
-      qrCanvas.width = qrImg.width; qrCanvas.height = qrImg.height;
-      qrCanvas.getContext('2d').drawImage(qrImg, 0, 0);
+      const qPx = Math.round(qMM * 3.78);
+      qrCanvas.width = qPx; qrCanvas.height = qPx;
+      const ctx = qrCanvas.getContext('2d');
+      const cellSize = qPx / moduleCount;
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,qPx,qPx);
+      ctx.fillStyle = '#000000';
+      for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+          if (qr.isDark(row, col)) {
+            ctx.fillRect(Math.floor(col*cellSize), Math.floor(row*cellSize), Math.ceil(cellSize), Math.ceil(cellSize));
+          }
+        }
+      }
       pdf.addImage(qrCanvas.toDataURL('image/png'), 'PNG', anchoMM/2-qMM/2, altoMM*0.15, qMM, qMM);
-    } catch(e) {
-      console.warn('QR error para', codigo, e);
-    }
+    } catch(e) { console.warn('QR error:', e); }
 
     // Barcode via SVG → canvas
     const bcSVG = document.createElementNS('http://www.w3.org/2000/svg','svg');
