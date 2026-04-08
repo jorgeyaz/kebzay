@@ -1774,10 +1774,6 @@ async function generarEtiquetasPDF() {
   if (itemsEtq.length === 0) { showToast('No hay ítems para etiquetar'); return; }
   showToast(`Generando ${itemsEtq.length} etiqueta${itemsEtq.length !== 1 ? 's' : ''}...`);
 
-  const tempDiv = document.createElement('div');
-  tempDiv.style.cssText = 'position:fixed;left:-9999px;top:0;';
-  document.body.appendChild(tempDiv);
-
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF({
     orientation: anchoMM > altoMM ? 'landscape' : 'portrait',
@@ -1787,35 +1783,41 @@ async function generarEtiquetasPDF() {
   for (let i = 0; i < itemsEtq.length; i++) {
     if (i > 0) pdf.addPage([anchoMM, altoMM]);
     const item = itemsEtq[i];
-    pdf.setFillColor(255, 255, 255); pdf.rect(0, 0, anchoMM, altoMM, 'F');
+    pdf.setFillColor(255,255,255); pdf.rect(0,0,anchoMM,altoMM,'F');
 
     // Nombre
     pdf.setTextColor(0,0,0); pdf.setFont('helvetica','bold');
-    pdf.setFontSize(Math.max(5, altoMM * 0.12));
+    pdf.setFontSize(Math.max(5, altoMM*0.12));
     const txt = pdf.splitTextToSize((item.nombre||'').substring(0,35), anchoMM-3);
-    pdf.text(txt[0], anchoMM/2, altoMM*0.1, { align:'center' });
+    pdf.text(txt[0], anchoMM/2, altoMM*0.1, {align:'center'});
 
-    // QR
-    const qrCont = document.createElement('div');
-    tempDiv.appendChild(qrCont);
-    const qrPx = Math.round(Math.min(altoMM*0.45, anchoMM*0.38) * 3.78);
+    // QR via Google Charts API — cada llamada es totalmente independiente
+    const codigo = item.codigo || item.id;
+    const qrText = encodeURIComponent(BASE_URL + codigo);
+    const qMM = Math.min(altoMM*0.45, anchoMM*0.38);
+    const qPx = Math.round(qMM * 3.78);
+    const qrApiUrl = `https://chart.googleapis.com/chart?chs=${qPx}x${qPx}&cht=qr&chl=${qrText}&choe=UTF-8&chld=M|1`;
     try {
-      new QRCode(qrCont, { text: BASE_URL+(item.codigo||item.id), width:qrPx, height:qrPx, colorDark:'#000', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M });
-      await sleep(100);
-      const qrEl = qrCont.querySelector('canvas') || qrCont.querySelector('img');
-      if (qrEl) {
-        const qrData = qrEl.tagName==='CANVAS' ? qrEl.toDataURL() : qrEl.src;
-        const qMM = Math.min(altoMM*0.45, anchoMM*0.38);
-        pdf.addImage(qrData,'PNG',anchoMM/2-qMM/2, altoMM*0.15, qMM, qMM);
-      }
-    } catch(e) { console.warn(e); }
+      const qrImg = await loadImage(qrApiUrl);
+      const qrCanvas = document.createElement('canvas');
+      qrCanvas.width = qrImg.width; qrCanvas.height = qrImg.height;
+      qrCanvas.getContext('2d').drawImage(qrImg, 0, 0);
+      pdf.addImage(qrCanvas.toDataURL('image/png'), 'PNG', anchoMM/2-qMM/2, altoMM*0.15, qMM, qMM);
+    } catch(e) {
+      console.warn('QR error para', codigo, e);
+    }
 
-    // Barcode
-    const bcCont = document.createElement('div');
+    // Barcode via SVG → canvas
     const bcSVG = document.createElementNS('http://www.w3.org/2000/svg','svg');
-    bcCont.appendChild(bcSVG); tempDiv.appendChild(bcCont);
+    document.body.appendChild(bcSVG);
     try {
-      JsBarcode(bcSVG, item.codigo||item.id, { format:'CODE128', width:1.5, height:Math.round(altoMM*0.18*3.78), displayValue:true, fontSize:Math.max(8,altoMM*0.08*3.78), margin:2, background:'#fff', lineColor:'#000' });
+      JsBarcode(bcSVG, codigo, {
+        format:'CODE128', width:1.5,
+        height:Math.round(altoMM*0.18*3.78),
+        displayValue:true,
+        fontSize:Math.max(8, altoMM*0.08*3.78),
+        margin:2, background:'#fff', lineColor:'#000'
+      });
       const svgData = new XMLSerializer().serializeToString(bcSVG);
       const svgUrl = URL.createObjectURL(new Blob([svgData],{type:'image/svg+xml'}));
       const bcImg = await loadImage(svgUrl);
@@ -1828,13 +1830,13 @@ async function generarEtiquetasPDF() {
     } catch(e) {
       pdf.setTextColor(26,79,214); pdf.setFont('helvetica','bold');
       pdf.setFontSize(Math.max(6,altoMM*0.09));
-      pdf.text(item.codigo||item.id, anchoMM/2, altoMM-2, {align:'center'});
+      pdf.text(codigo, anchoMM/2, altoMM-2, {align:'center'});
+    } finally {
+      document.body.removeChild(bcSVG);
     }
   }
 
-  document.body.removeChild(tempDiv);
   closeEtiquetas();
-
   const blob = pdf.output('blob');
   const fileName = `kebzay_etiquetas_${new Date().toISOString().slice(0,10)}.pdf`;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
