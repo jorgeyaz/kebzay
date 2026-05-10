@@ -277,8 +277,9 @@
     </div>
 
     <div class="empty-state" id="emptyState">
-      <div class="empty-icon">🏭</div>
-      <p>El inventario está vacío. Agregá el primer ítem con el botón "+ Agregar".</p>
+      <div class="empty-icon" id="emptyIcon">🏭</div>
+      <p id="emptyMsg">El inventario está vacío. Agregá el primer ítem con el botón "+ Agregar".</p>
+      <button id="emptyRetryBtn" onclick="loadItems()" style="display:none;margin-top:12px;padding:10px 24px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">↺ Reintentar</button>
     </div>
     <div class="items-grid" id="itemsGrid" style="display:none;"></div>
   </main>
@@ -639,13 +640,33 @@ function loadLocal() {
   return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
 }
 
+function setEmptyState(mode) {
+  const icon = document.getElementById('emptyIcon');
+  const msg = document.getElementById('emptyMsg');
+  const btn = document.getElementById('emptyRetryBtn');
+  if (mode === 'loading') {
+    icon.textContent = '⏳';
+    msg.textContent = 'Cargando datos...';
+    btn.style.display = 'none';
+  } else if (mode === 'error') {
+    icon.textContent = '⚠️';
+    msg.textContent = 'No se pudo conectar con la base de datos. Verificá tu conexión a internet e intentá de nuevo.';
+    btn.style.display = 'inline-block';
+  } else {
+    icon.textContent = '🏭';
+    msg.textContent = 'El inventario está vacío. Agregá el primer ítem con el botón "+ Agregar".';
+    btn.style.display = 'none';
+  }
+}
+
 async function loadItems() {
   // 1. Cargar local inmediatamente (sin esperar red)
   items = loadLocal();
+  if (items.length === 0) setEmptyState('loading');
   applyFilters();
   updateCounter();
 
-  // 2. Intentar sincronizar con Supabase en segundo plano
+  // 2. Sincronizar con Supabase
   try {
     const res = await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?order=codigo.asc`, { headers: SUPA_HEADERS });
     if (res.ok) {
@@ -656,6 +677,7 @@ async function loadItems() {
         const localOnly = items.filter(i => !supaIds.has(i.id));
         items = [...data, ...localOnly];
         saveLocal();
+        setEmptyState('empty');
         applyFilters();
         updateCounter();
         // Subir los locales que no están en Supabase
@@ -664,13 +686,21 @@ async function loadItems() {
         }
       } else if (items.length > 0) {
         // Supabase vacío pero tenemos local — subir todo
+        setEmptyState('empty');
         for (const item of items) {
           syncItemToSupabase(item);
         }
+      } else {
+        // Supabase vacío y local vacío — inventario realmente vacío
+        setEmptyState('empty');
+        applyFilters();
       }
+    } else {
+      if (items.length === 0) setEmptyState('error');
     }
   } catch(e) {
     console.warn('Supabase no disponible, usando local', e);
+    if (items.length === 0) setEmptyState('error');
   }
 }
 
