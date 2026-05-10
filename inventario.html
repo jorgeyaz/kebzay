@@ -577,6 +577,13 @@ if (sessionStorage.getItem('kebzay_pin_ok') !== '1') {
 // ── SUPABASE ──────────────────────────────────────────────────────────────
 const SUPA_URL = 'https://gjsybqqwwwjntkobpodg.supabase.co';
 const SUPA_KEY = 'sb_publishable_N9daPMK4JxgWAdigPhrYyA_JB2voiQf';
+// GET: sin Content-Type ni Prefer para evitar preflight CORS que Safari rechaza
+const SUPA_HEADERS_GET = {
+  'apikey': SUPA_KEY,
+  'Authorization': 'Bearer ' + SUPA_KEY,
+  'Accept': 'application/json'
+};
+// WRITE: headers completos para POST/PATCH/DELETE
 const SUPA_HEADERS = {
   'Content-Type': 'application/json',
   'apikey': SUPA_KEY,
@@ -668,7 +675,7 @@ async function loadItems() {
 
   // 2. Sincronizar con Supabase
   try {
-    const res = await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?order=codigo.asc`, { headers: SUPA_HEADERS });
+    const res = await fetch(`${SUPA_URL}/rest/v1/kebzay_inventario?order=codigo.asc`, { headers: SUPA_HEADERS_GET });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
@@ -1860,15 +1867,17 @@ async function generarEtiquetasPDF() {
         fontSize:Math.max(8, altoMM*0.08*3.78),
         margin:2, background:'#fff', lineColor:'#000'
       });
+      const bcW = parseInt(bcSVG.getAttribute('width')) || 200;
+      const bcH = parseInt(bcSVG.getAttribute('height')) || 80;
       const svgData = new XMLSerializer().serializeToString(bcSVG);
       const svgUrl = URL.createObjectURL(new Blob([svgData],{type:'image/svg+xml'}));
       const bcImg = await loadImage(svgUrl);
       URL.revokeObjectURL(svgUrl);
       const bcCanvas = document.createElement('canvas');
-      bcCanvas.width=bcImg.width; bcCanvas.height=bcImg.height;
-      bcCanvas.getContext('2d').drawImage(bcImg,0,0);
-      const bW=anchoMM-4, bH=bW*(bcImg.height/bcImg.width);
-      pdf.addImage(bcCanvas.toDataURL('image/png'),'PNG',2,altoMM-bH-1,bW,bH);
+      bcCanvas.width = bcW; bcCanvas.height = bcH;
+      bcCanvas.getContext('2d').drawImage(bcImg, 0, 0, bcW, bcH);
+      const bW=anchoMM-4, bH=bW*(bcH/bcW);
+      pdf.addImage(bcCanvas.toDataURL('image/png'),'PNG',2,altoMM-bH-1,bW,bH,`bc-${i}`,'NONE');
     } catch(e) {
       pdf.setTextColor(26,79,214); pdf.setFont('helvetica','bold');
       pdf.setFontSize(Math.max(6,altoMM*0.09));
