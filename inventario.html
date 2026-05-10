@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KEBZAY — Inventario</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap');
@@ -1736,26 +1736,10 @@ function generarEtiquetaDOM(container, item, anchoMM, altoMM, escala) {
   const qrDiv = document.createElement('div');
   const qrSize = Math.round(Math.min(altoP * 0.45, anchoP * 0.38));
   qrDiv.style.cssText = `width:${qrSize}px;height:${qrSize}px;flex-shrink:0;`;
-  try {
-    const qr = qrcode(0, 'M');
-    qr.addData(BASE_URL + (item.codigo || item.id));
-    qr.make();
-    const moduleCount = qr.getModuleCount();
-    const qrCanvas = document.createElement('canvas');
-    qrCanvas.width = qrSize; qrCanvas.height = qrSize;
-    const ctx = qrCanvas.getContext('2d');
-    const cellSize = qrSize / moduleCount;
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,qrSize,qrSize);
-    ctx.fillStyle = '#000000';
-    for (let row = 0; row < moduleCount; row++) {
-      for (let col = 0; col < moduleCount; col++) {
-        if (qr.isDark(row, col)) {
-          ctx.fillRect(Math.floor(col*cellSize), Math.floor(row*cellSize), Math.ceil(cellSize), Math.ceil(cellSize));
-        }
-      }
-    }
-    qrDiv.appendChild(qrCanvas);
-  } catch(e) {}
+  const qrCanvas = document.createElement('canvas');
+  QRCode.toCanvas(qrCanvas, BASE_URL + (item.codigo || item.id), {
+    width: qrSize, margin: 1, color: {dark:'#000000', light:'#ffffff'}
+  }).then(() => qrDiv.appendChild(qrCanvas)).catch(() => {});
   wrapper.appendChild(qrDiv);
 
   const barcodeDiv = document.createElement('div');
@@ -1803,27 +1787,16 @@ async function generarEtiquetasPDF() {
     const txt = pdf.splitTextToSize((item.nombre||'').substring(0,35), anchoMM-3);
     pdf.text(txt[0], anchoMM/2, altoMM*0.1, {align:'center'});
 
-    // QR dibujado directo con jsPDF — sin addImage, sin cache posible
     const codigo = item.codigo || item.id;
     const qMM = Math.min(altoMM*0.45, anchoMM*0.38);
     const qX = anchoMM/2 - qMM/2;
     const qY = altoMM*0.15;
     try {
-      const qr = qrcode(0, 'M');
-      qr.addData(BASE_URL + codigo);
-      qr.make();
-      const moduleCount = qr.getModuleCount();
-      const cellMM = qMM / moduleCount;
-      pdf.setFillColor(255,255,255);
-      pdf.rect(qX, qY, qMM, qMM, 'F');
-      pdf.setFillColor(0,0,0);
-      for (let row = 0; row < moduleCount; row++) {
-        for (let col = 0; col < moduleCount; col++) {
-          if (qr.isDark(row, col)) {
-            pdf.rect(qX + col*cellMM, qY + row*cellMM, cellMM, cellMM, 'F');
-          }
-        }
-      }
+      const qrCanvas = document.createElement('canvas');
+      await QRCode.toCanvas(qrCanvas, BASE_URL + codigo, {
+        width: 256, margin: 1, color: {dark:'#000000', light:'#ffffff'}
+      });
+      pdf.addImage(qrCanvas.toDataURL('image/png'), 'PNG', qX, qY, qMM, qMM, `qr-${i}`, 'NONE');
     } catch(e) { console.warn('QR error:', e); }
 
     // Barcode via SVG → canvas
