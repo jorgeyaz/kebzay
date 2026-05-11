@@ -79,9 +79,10 @@ ssh -T git@github.com
 
 ## Backend — Supabase
 
-- **URL:** `https://gjsybqqwwwjntkobpodg.supabase.co`
-- **Publishable key:** `sb_publishable_N9daPMK4JxgWAdigPhrYyA_JB2voiQf`
+- **URL:** `https://hxlechhhwkcxpexuqsgx.supabase.co`
+- **Publishable key:** `sb_publishable_BntSAqmx7BfcPGDRL5XDmg_-aAk3xm4`
 - **Organización:** kebzay
+- **Nota:** El proyecto anterior (`gjsybqqwwwjntkobpodg`) fue eliminado por inactividad en el plan gratuito (2026-05-10). Este es el proyecto de reemplazo.
 
 ### Tablas
 
